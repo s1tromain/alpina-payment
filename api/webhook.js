@@ -1,9 +1,5 @@
-const { editMessageCaption, answerCallbackQuery } = require('./_telegram');
-
-function getAdminIds() {
-  if (!process.env.ADMIN_ID) return [];
-  return process.env.ADMIN_ID.split(',').map(id => id.trim()).filter(Boolean);
-}
+const { editMessageCaption, answerCallbackQuery, sendPlainMessage } = require('./_telegram');
+const { getRedis } = require('./_ratelimit');
 
 const MAX_BODY_SIZE = 64 * 1024;
 
@@ -31,6 +27,58 @@ function readBody(req) {
   });
 }
 
+async function handleMessage(msg, res) {
+  if (!msg.text || !msg.from || !msg.chat || msg.chat.type !== 'private') {
+    return res.status(200).json({ ok: true });
+  }
+
+  const chatId = msg.chat.id;
+  const userId = String(msg.from.id);
+  const text = msg.text.trim();
+
+  if (text === '/start') {
+    const r = getRedis();
+    if (r) {
+      const isAuthed = await r.get(`mod:auth:${userId}`);
+      if (isAuthed) {
+        await sendPlainMessage(chatId, 'Вы уже авторизованы как модератор');
+      } else {
+        await sendPlainMessage(chatId, 'Введите пароль модератора:');
+      }
+    }
+    return res.status(200).json({ ok: true });
+  }
+
+  if (text === '/logout') {
+    const r = getRedis();
+    if (r) {
+      await r.del(`mod:auth:${userId}`);
+    }
+    await sendPlainMessage(chatId, 'Вы вышли из модерации');
+    return res.status(200).json({ ok: true });
+  }
+
+  if (text.startsWith('/')) {
+    return res.status(200).json({ ok: true });
+  }
+
+  if (!process.env.MODERATOR_PASSWORD) {
+    return res.status(200).json({ ok: true });
+  }
+
+  if (text === process.env.MODERATOR_PASSWORD) {
+    const r = getRedis();
+    if (r) {
+      await r.set(`mod:auth:${userId}`, 'true', { ex: 86400 });
+      await sendPlainMessage(chatId, 'Модерация доступна. Вы можете подтверждать заявки через кнопки в канале.');
+    }
+  } else {
+    await sendPlainMessage(chatId, 'Неверный пароль');
+  }
+
+  return res.status(200).json({ ok: true });
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).end();
@@ -47,6 +95,10 @@ module.exports = async (req, res) => {
   try {
     const update = await readBody(req);
 
+    if (update.message) {
+      return handleMessage(update.message, res);
+    }
+
     if (!update.callback_query) {
       return res.status(200).json({ ok: true });
     }
@@ -58,10 +110,15 @@ module.exports = async (req, res) => {
     }
 
     const fromId = String(cb.from.id);
-    const adminIds = getAdminIds();
 
-    if (!adminIds.includes(fromId)) {
-      await answerCallbackQuery(cb.id, '\u0423 \u0432\u0430\u0441 \u043D\u0435\u0442 \u043F\u0440\u0430\u0432 \u0434\u043B\u044F \u044D\u0442\u043E\u0433\u043E \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F');
+    const r = getRedis();
+    let isAuthorized = false;
+    if (r) {
+      isAuthorized = !!(await r.get(`mod:auth:${fromId}`));
+    }
+
+    if (!isAuthorized) {
+      await answerCallbackQuery(cb.id, 'Недоступно');
       return res.status(200).json({ ok: true });
     }
 

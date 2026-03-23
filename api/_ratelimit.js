@@ -119,4 +119,4 @@ async function recordSubmission(req, fields) {
   }
 }
 
-module.exports = { checkAntiSpam, recordSubmission };
+module.exports = { checkAntiSpam, recordSubmission, getRedis };

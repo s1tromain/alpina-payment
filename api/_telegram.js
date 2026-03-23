@@ -60,4 +60,8 @@ async function answerCallbackQuery(callbackQueryId, text) {
   });
 }
 
-module.exports = { esc, sendMessage, sendPhotoBuffer, editMessageCaption, answerCallbackQuery };
+async function sendPlainMessage(chatId, text) {
+  return callJson('sendMessage', { chat_id: chatId, text });
+}
+
+module.exports = { esc, sendMessage, sendPlainMessage, sendPhotoBuffer, editMessageCaption, answerCallbackQuery };
