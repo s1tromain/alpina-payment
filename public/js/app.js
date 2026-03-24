@@ -23,6 +23,24 @@
   let cooldownUntil = 0;
   let selectedSymbol = '\u20bd';
 
+  const themeToggle = document.getElementById('themeToggle');
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    themeToggle.textContent = theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+  }
+  (function initTheme() {
+    var saved = localStorage.getItem('theme') || 'dark';
+    applyTheme(saved);
+  })();
+  themeToggle.addEventListener('click', function() {
+    var current = document.documentElement.getAttribute('data-theme') || 'dark';
+    var next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.classList.add('theme-switching');
+    applyTheme(next);
+    localStorage.setItem('theme', next);
+    setTimeout(function() { document.documentElement.classList.remove('theme-switching'); }, 350);
+  });
+
   currencySelected.addEventListener('click', () => {
     currencyDropdown.classList.toggle('open');
   });
@@ -83,8 +101,7 @@
 
   fileInput.addEventListener('change', () => {
     handleFile(fileInput.files[0]);
-    uploadZone.style.borderColor = '';
-    uploadZone.style.boxShadow = '';
+    uploadZone.classList.remove('error');
   });
 
   removeFileBtn.addEventListener('click', () => {
@@ -140,8 +157,7 @@
     if (!validateForm()) return;
 
     if (!fileInput.files.length) {
-      uploadZone.style.borderColor = '#ff4444';
-      uploadZone.style.boxShadow = '0 0 0 2px rgba(255,68,68,.25)';
+      uploadZone.classList.add('error');
       alert('\u041f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u0442\u0435 \u0447\u0435\u043a \u0434\u043b\u044f \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438 \u0437\u0430\u044f\u0432\u043a\u0438');
       return;
     }

@@ -6,6 +6,7 @@
   <title>ALPINA PAY-OUT — Оформление заявки</title>
   <link rel="icon" type="image/webp" href="images/logo/IMG_1425.WEBP">
   <link rel="stylesheet" href="css/style.css">
+  <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)})()</script>
 </head>
 <body>
 
@@ -16,9 +17,12 @@
       <div class="brand-icon"><img src="images/logo/IMG_1425.WEBP" alt="ALPINA PAY-OUT"></div>
       <div class="brand-name">ALPINA PAY-OUT</div>
     </div>
-    <div class="topbar-status">
-      <div class="status-dot"></div>
-      Система активна
+    <div class="topbar-right">
+      <div class="topbar-status">
+        <div class="status-dot"></div>
+        Система активна
+      </div>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Переключить тему">☀️</button>
     </div>
   </header>
 
@@ -104,7 +108,7 @@
           <span class="error-msg">Укажите сумму оплаты (только цифры)</span>
         </div>
         <div class="field">
-          <label for="comment">Комментарий <span style="color:rgba(160,160,160,.4)">(необязательно)</span></label>
+          <label for="comment">Комментарий <span style="color:var(--text-hint)">(необязательно)</span></label>
           <textarea id="comment" placeholder="Дополнительная информация..." maxlength="500"></textarea>
         </div>
         <div style="position:absolute;left:-9999px;height:0;overflow:hidden" aria-hidden="true">
@@ -163,7 +167,7 @@
       </div>
       <div class="detail-row">
         <span class="detail-label">Уникальный код</span>
-        <span class="detail-value" id="modalPassword" style="font-family:monospace;letter-spacing:1px;color:#2FE3E0">—</span>
+        <span class="detail-value" id="modalPassword" style="font-family:monospace;letter-spacing:1px;color:var(--teal-light)">—</span>
       </div>
       <div class="detail-row">
         <span class="detail-label">Сумма</span>

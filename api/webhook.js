@@ -111,10 +111,22 @@ module.exports = async (req, res) => {
 
     const fromId = String(cb.from.id);
 
-    const r = getRedis();
-    let isAuthorized = false;
-    if (r) {
-      isAuthorized = !!(await r.get(`mod:auth:${fromId}`));
+    const adminList = (process.env.ADMIN_ID || '')
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean);
+    const isAdmin = adminList.includes(fromId);
+
+    let isAuthorized = isAdmin;
+    if (!isAuthorized) {
+      try {
+        const r = getRedis();
+        if (r) {
+          isAuthorized = !!(await r.get(`mod:auth:${fromId}`));
+        }
+      } catch (_) {
+        // Redis failure — admins already authorized above, others denied
+      }
     }
 
     if (!isAuthorized) {
