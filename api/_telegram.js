@@ -47,7 +47,7 @@ async function sendPhotoBuffer(chatId, buffer, filename, mimeType, caption, repl
 }
 
 async function editMessageCaption(chatId, messageId, caption, replyMarkup) {
-  const body = { chat_id: chatId, message_id: messageId };
+  const body = { chat_id: chatId, message_id: messageId, parse_mode: 'MarkdownV2' };
   if (caption !== undefined) body.caption = caption;
   if (replyMarkup) body.reply_markup = replyMarkup;
   return callJson('editMessageCaption', body);
@@ -60,8 +60,16 @@ async function answerCallbackQuery(callbackQueryId, text) {
   });
 }
 
-async function sendPlainMessage(chatId, text) {
-  return callJson('sendMessage', { chat_id: chatId, text });
+async function sendPlainMessage(chatId, text, replyMarkup) {
+  const body = { chat_id: chatId, text };
+  if (replyMarkup) body.reply_markup = replyMarkup;
+  return callJson('sendMessage', body);
 }
 
-module.exports = { esc, sendMessage, sendPlainMessage, sendPhotoBuffer, editMessageCaption, answerCallbackQuery };
+async function editMessageText(chatId, messageId, text, replyMarkup) {
+  const body = { chat_id: chatId, message_id: messageId, text };
+  if (replyMarkup) body.reply_markup = replyMarkup;
+  return callJson('editMessageText', body);
+}
+
+module.exports = { esc, sendMessage, sendPlainMessage, sendPhotoBuffer, editMessageCaption, editMessageText, answerCallbackQuery };

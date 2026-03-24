@@ -1,31 +1,12 @@
-const crypto = require('crypto');
 const Busboy = require('busboy');
-const { esc, sendMessage, sendPhotoBuffer } = require('./_telegram');
-const { checkAntiSpam, recordSubmission } = require('./_ratelimit');
+const { validateInitData } = require('./_auth');
+const { getDb } = require('./_db');
+const { esc, sendPhotoBuffer, sendMessage, sendPlainMessage } = require('./_telegram');
+const { recordSubmission } = require('./_ratelimit');
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
-
 const ALLOWED_TYPES = ['image/jpeg', 'image/png'];
 const MAX_FILE_SIZE = 4.5 * 1024 * 1024;
-const MAX_AMOUNT_LENGTH = 15;
-const MAX_COMMENT_LENGTH = 500;
-const VALID_CURRENCIES = [
-  'RUB','USD','UZS','KGS','KZT','TJS','BYN','AMD','AZN','GEL','MDL','TMT'
-];
-
-function generateOrderId() {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return 'ALP-' + ts + '-' + rand;
-}
-
-function generatePassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = crypto.randomBytes(8);
-  let pwd = '';
-  for (let i = 0; i < 8; i++) pwd += chars[bytes[i] % chars.length];
-  return pwd;
-}
 
 function sanitizeFilename(name) {
   if (!name) return 'receipt.jpg';
@@ -76,43 +57,43 @@ function parseMultipart(req) {
   });
 }
 
-function buildCaption(orderId, password, amount, currency, comment, spamFlags) {
+function buildCaption(order, username, spamFlag) {
   const lines = [];
-  if (spamFlags) {
-    if (spamFlags.reason === 'redis_unavailable') {
-      lines.push('\u{1F6A8} *Antispam unavailable \\(Redis not configured\\)*', '');
-    } else if (spamFlags.reason === 'redis_error') {
-      lines.push('\u{1F6A8} *Antispam unavailable \\(Redis error\\)*', '');
-    } else if (spamFlags.suspicious) {
-      lines.push('\u26A0\uFE0F *\u041F\u043E\u0434\u043E\u0437\u0440\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430* \\[' + esc(spamFlags.reason || 'unknown') + '\\]', '');
-    }
+
+  if (spamFlag) {
+    lines.push('\u26A0\uFE0F *\u041F\u043E\u0434\u043E\u0437\u0440\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430* \\[' + esc(spamFlag) + '\\]', '');
   }
+
+  const userDisplay = username ? '@' + esc(username) : esc(String(order.telegram_id));
+
   lines.push(
-    '\u{1F4CB} *\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430 ALPINA PAY\\-OUT*',
+    '\uD83D\uDCCB *\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430 ALPINA PAY\\-OUT*',
     '',
-    `\u{1F194} *\u041D\u043E\u043C\u0435\u0440 \u0437\u0430\u044F\u0432\u043A\u0438:* \`${esc(orderId)}\``,
-    `\u{1F511} *\u0423\u043D\u0438\u043A\u0430\u043B\u044C\u043D\u044B\u0439 \u043A\u043E\u0434:* \`${esc(password)}\``,
-    `\u{1F4B0} *\u0421\u0443\u043C\u043C\u0430:* ${esc(amount)} ${esc(currency)}`
+    '\uD83C\uDD94 *\u041D\u043E\u043C\u0435\u0440:* `' + esc(order.order_id) + '`',
+    '\uD83D\uDC64 *\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C:* ' + userDisplay,
+    '\uD83D\uDCB0 *\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435:* ' + esc(String(order.receive_amount)) + ' ' + esc(order.receive_currency),
+    '\uD83D\uDCB3 *\u041E\u043F\u043B\u0430\u0442\u0430:* ' + esc(String(order.pay_amount)) + ' ' + esc(order.pay_currency),
+    '\uD83D\uDCCA *\u041A\u0443\u0440\u0441:* ' + esc(String(order.final_rate)),
+    '\uD83D\uDCDD *\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B:* ' + esc(order.payout_details),
+    '',
+    '\u23F3 _\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438_'
   );
-  if (comment) {
-    lines.push(`\u{1F4AC} *\u041A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0439:* ${esc(comment)}`);
-  }
-  lines.push('', '\u23F3 _\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438_');
+
   return lines.join('\n');
 }
 
 function buildButtons(orderId) {
   return {
     inline_keyboard: [[
-      { text: '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C', callback_data: `approve:${orderId}` },
-      { text: '\u274C \u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C', callback_data: `reject:${orderId}` }
+      { text: '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044C', callback_data: 'approve:' + orderId },
+      { text: '\u274C \u041E\u0442\u043A\u043B\u043E\u043D\u0438\u0442\u044C', callback_data: 'reject:' + orderId }
     ]]
   };
 }
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return res.status(405).json({ ok: false, error: 'POST only' });
   }
 
   if (!process.env.BOT_TOKEN || !CHANNEL_ID) {
@@ -120,79 +101,108 @@ module.exports = async (req, res) => {
   }
 
   try {
+    const initData = req.headers['x-telegram-init-data'];
+    const user = validateInitData(initData);
+    if (!user) {
+      return res.status(403).json({ ok: false, error: '\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F' });
+    }
+
     const { fields, fileBuffer, fileInfo, fileTruncated } = await parseMultipart(req);
 
-    if (fields._hp) {
-      return res.status(200).json({ ok: true, orderId: generateOrderId(), password: generatePassword() });
-    }
-
-    const elapsed = parseInt(fields._t, 10);
-    if (!elapsed || elapsed < 5000) {
-      return res.status(429).json({ ok: false, error: '\u0412\u044B \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0447\u0430\u0441\u0442\u043E \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442\u0435 \u0437\u0430\u044F\u0432\u043A\u0438. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.' });
-    }
-
-    const { currency, amount, comment } = fields;
-
-    if (!currency || !amount) {
-      return res.status(400).json({ ok: false, error: '\u0417\u0430\u043F\u043E\u043B\u043D\u0438\u0442\u0435 \u0432\u0441\u0435 \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u043F\u043E\u043B\u044F' });
-    }
-
-    if (!/^\d+$/.test(amount) || amount.length > MAX_AMOUNT_LENGTH) {
-      return res.status(400).json({ ok: false, error: '\u0421\u0443\u043C\u043C\u0430 \u0434\u043E\u043B\u0436\u043D\u0430 \u0431\u044B\u0442\u044C \u0447\u0438\u0441\u043B\u043E\u043C' });
-    }
-
-    if (!VALID_CURRENCIES.includes(currency)) {
-      return res.status(400).json({ ok: false, error: '\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0430\u044F \u0432\u0430\u043B\u044E\u0442\u0430' });
+    const { orderId } = fields;
+    if (!orderId) {
+      return res.status(400).json({ ok: false, error: '\u041D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D \u043D\u043E\u043C\u0435\u0440 \u0437\u0430\u044F\u0432\u043A\u0438' });
     }
 
     if (fileTruncated) {
       return res.status(400).json({ ok: false, error: '\u0424\u0430\u0439\u043B \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0439 (\u043C\u0430\u043A\u0441 4.5 \u041C\u0411)' });
     }
 
-    if (!fileBuffer) {
-      return res.status(400).json({ ok: false, error: '\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u0435 \u0447\u0435\u043A' });
+    if (!fileBuffer || !isValidImage(fileBuffer)) {
+      return res.status(400).json({ ok: false, error: '\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u0435 \u0447\u0435\u043A (JPG \u0438\u043B\u0438 PNG)' });
     }
 
-    if (!isValidImage(fileBuffer)) {
-      return res.status(400).json({ ok: false, error: '\u041D\u0435\u0434\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0439 \u0444\u043E\u0440\u043C\u0430\u0442 \u0444\u0430\u0439\u043B\u0430' });
+    const db = getDb();
+    const { data: order, error: fetchErr } = await db
+      .from('orders')
+      .select('*')
+      .eq('order_id', orderId)
+      .eq('telegram_id', user.id)
+      .single();
+
+    if (fetchErr || !order) {
+      return res.status(404).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430' });
     }
 
-    const safeComment = comment ? comment.substring(0, MAX_COMMENT_LENGTH).trim() : '';
+    if (order.status !== 'created') {
+      return res.status(400).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u0430 \u0438\u043B\u0438 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430' });
+    }
 
-    const spam = await checkAntiSpam(req, { amount, currency, comment: safeComment });
+    if (new Date(order.expires_at) < new Date()) {
+      await db.from('orders').update({ status: 'expired' }).eq('order_id', orderId);
+      return res.status(400).json({ ok: false, error: '\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.' });
+    }
+
+    let spamFlag = null;
+    const spam = await (async () => {
+      try {
+        const { checkAntiSpam } = require('./_ratelimit');
+        return await checkAntiSpam(req, {
+          telegramId: String(user.id),
+          amount: String(order.receive_amount),
+          currency: order.receive_currency
+        });
+      } catch (_) {
+        return { allowed: true, suspicious: false };
+      }
+    })();
+
     if (!spam.allowed) {
       return res.status(429).json({ ok: false, error: spam.error });
     }
+    if (spam.suspicious && spam.reason) {
+      spamFlag = spam.reason;
+    }
 
-    const orderId = generateOrderId();
-    const password = generatePassword();
-    const spamFlags = (spam.suspicious || spam.reason) ? spam : null;
-    const caption = buildCaption(orderId, password, amount, currency, safeComment, spamFlags);
+    const caption = buildCaption(order, user.username, spamFlag);
     const buttons = buildButtons(orderId);
-
     const safeFilename = sanitizeFilename(fileInfo.filename);
 
     const channelResult = await sendPhotoBuffer(
       CHANNEL_ID, fileBuffer, safeFilename, fileInfo.mimeType, caption, buttons
     );
 
-    if (!channelResult.ok) {
-      console.error('Telegram send failed:', channelResult.error_code);
-      await sendMessage(CHANNEL_ID, caption, buttons);
-    }
-
-    const adminIds = process.env.ADMIN_ID
-      ? process.env.ADMIN_ID.split(',').map(id => id.trim()).filter(Boolean)
-      : [];
-    for (const adminId of adminIds) {
-      if (adminId !== String(CHANNEL_ID)) {
-        await sendPhotoBuffer(adminId, fileBuffer, safeFilename, fileInfo.mimeType, caption);
+    let channelMessageId = null;
+    if (channelResult.ok && channelResult.result) {
+      channelMessageId = channelResult.result.message_id;
+    } else {
+      const textResult = await sendMessage(CHANNEL_ID, caption, buttons);
+      if (textResult.ok && textResult.result) {
+        channelMessageId = textResult.result.message_id;
       }
     }
 
-    await recordSubmission(req, { amount, currency, comment: safeComment });
+    let receiptFileId = null;
+    if (channelResult.ok && channelResult.result && channelResult.result.photo) {
+      const photos = channelResult.result.photo;
+      receiptFileId = photos[photos.length - 1].file_id;
+    }
 
-    return res.status(200).json({ ok: true, orderId, password });
+    await db.from('orders').update({
+      status: 'pending',
+      telegram_channel_message_id: channelMessageId,
+      receipt_file_id: receiptFileId
+    }).eq('order_id', orderId);
+
+    await recordSubmission({
+      telegramId: String(user.id),
+      amount: String(order.receive_amount),
+      currency: order.receive_currency
+    });
+
+    await sendPlainMessage(user.id, '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043F\u0440\u0438\u043D\u044F\u0442\u0430 \u0438 \u043D\u0430\u0445\u043E\u0434\u0438\u0442\u0441\u044F \u0432 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0435.');
+
+    return res.status(200).json({ ok: true, orderId });
   } catch (err) {
     console.error('Submit error:', err.message);
     return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });

@@ -2,11 +2,11 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ALPINA PAY-OUT — Оформление заявки</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ALPINA PAY-OUT</title>
   <link rel="icon" type="image/webp" href="images/logo/IMG_1425.WEBP">
   <link rel="stylesheet" href="css/style.css">
-  <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)})()</script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
@@ -22,127 +22,169 @@
         <div class="status-dot"></div>
         Система активна
       </div>
-      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Переключить тему">☀️</button>
     </div>
   </header>
 
-  <div class="container">
+  <nav class="tabs" id="navTabs">
+    <button class="tab active" data-tab="exchange">Обмен</button>
+    <button class="tab" data-tab="orders">Мои заявки</button>
+  </nav>
 
-    <div class="page-header fade-up">
-      <h1>Оформление заявки на оплату</h1>
-      <div class="subtitle">Заполните данные для создания заявки</div>
-    </div>
+  <!-- Screen: Exchange (Step 1) -->
+  <div id="screenExchange" class="screen active">
+    <div class="container">
 
-    <div class="requisites-card fade-up">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-        Реквизиты для перевода
+      <div class="page-header fade-up">
+        <h1>Обмен USDT</h1>
+        <div class="subtitle">Оформите заявку на получение USDT</div>
       </div>
-      <div class="req-row">
-        <span class="req-label">Номер карты</span>
-        <span class="req-value">7777 7777 7777 7777</span>
-      </div>
-    </div>
 
-    <div class="card fade-up">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Данные заявки
+      <div class="card fade-up">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Валюта получения
+        </div>
+        <div class="currency-display">
+          <span class="currency-icon">💲</span>
+          <span class="currency-code">USDT</span>
+          <span class="currency-name">Tether (TRC-20)</span>
+        </div>
       </div>
-      <form id="paymentForm" novalidate>
+
+      <div class="card fade-up">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Данные заявки
+        </div>
         <div class="field" data-required>
-          <label>Валюта оплаты</label>
-          <div class="currency-dropdown" id="currencyDropdown">
-            <div class="currency-selected" id="currencySelected">
-              <span class="sel-flag">🇷🇺</span>
-              <span class="sel-text">RUB<span class="sel-name">— Российский рубль</span></span>
-              <svg class="sel-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="currency-menu">
-              <div class="currency-menu-inner" id="currencyMenu">
-                <div class="cur-option active" data-currency="RUB" data-symbol="₽" data-name="Российский рубль">
-                  <span class="opt-flag">🇷🇺</span><span class="opt-code">RUB</span><span class="opt-name">Российский рубль</span><span class="opt-symbol">₽</span>
-                </div>
-                <div class="cur-option" data-currency="USD" data-symbol="$" data-name="Доллар США">
-                  <span class="opt-flag">🇺🇸</span><span class="opt-code">USD</span><span class="opt-name">Доллар США</span><span class="opt-symbol">$</span>
-                </div>
-                <div class="cur-option" data-currency="UZS" data-symbol="сўм" data-name="Узбекский сум">
-                  <span class="opt-flag">🇺🇿</span><span class="opt-code">UZS</span><span class="opt-name">Узбекский сум</span><span class="opt-symbol">сўм</span>
-                </div>
-                <div class="cur-option" data-currency="KGS" data-symbol="сом" data-name="Кыргызский сом">
-                  <span class="opt-flag">🇰🇬</span><span class="opt-code">KGS</span><span class="opt-name">Кыргызский сом</span><span class="opt-symbol">сом</span>
-                </div>
-                <div class="cur-option" data-currency="KZT" data-symbol="₸" data-name="Казахстанский тенге">
-                  <span class="opt-flag">🇰🇿</span><span class="opt-code">KZT</span><span class="opt-name">Казахстанский тенге</span><span class="opt-symbol">₸</span>
-                </div>
-                <div class="cur-option" data-currency="TJS" data-symbol="смн" data-name="Таджикский сомони">
-                  <span class="opt-flag">🇹🇯</span><span class="opt-code">TJS</span><span class="opt-name">Таджикский сомони</span><span class="opt-symbol">смн</span>
-                </div>
-                <div class="cur-option" data-currency="BYN" data-symbol="Br" data-name="Белорусский рубль">
-                  <span class="opt-flag">🇧🇾</span><span class="opt-code">BYN</span><span class="opt-name">Белорусский рубль</span><span class="opt-symbol">Br</span>
-                </div>
-                <div class="cur-option" data-currency="AMD" data-symbol="֏" data-name="Армянский драм">
-                  <span class="opt-flag">🇦🇲</span><span class="opt-code">AMD</span><span class="opt-name">Армянский драм</span><span class="opt-symbol">֏</span>
-                </div>
-                <div class="cur-option" data-currency="AZN" data-symbol="₼" data-name="Азербайджанский манат">
-                  <span class="opt-flag">🇦🇿</span><span class="opt-code">AZN</span><span class="opt-name">Азербайджанский манат</span><span class="opt-symbol">₼</span>
-                </div>
-                <div class="cur-option" data-currency="GEL" data-symbol="₾" data-name="Грузинский лари">
-                  <span class="opt-flag">🇬🇪</span><span class="opt-code">GEL</span><span class="opt-name">Грузинский лари</span><span class="opt-symbol">₾</span>
-                </div>
-                <div class="cur-option" data-currency="MDL" data-symbol="лей" data-name="Молдавский лей">
-                  <span class="opt-flag">🇲🇩</span><span class="opt-code">MDL</span><span class="opt-name">Молдавский лей</span><span class="opt-symbol">лей</span>
-                </div>
-                <div class="cur-option" data-currency="TMT" data-symbol="ман." data-name="Туркменский манат">
-                  <span class="opt-flag">🇹🇲</span><span class="opt-code">TMT</span><span class="opt-name">Туркменский манат</span><span class="opt-symbol">ман.</span>
-                </div>
-              </div>
-            </div>
+          <label for="receiveAmount">Сумма получения (USDT)</label>
+          <input type="text" id="receiveAmount" inputmode="decimal" placeholder="Например: 100" maxlength="15" autocomplete="off">
+          <span class="error-msg">Укажите сумму получения</span>
+        </div>
+        <div class="field" data-required>
+          <label for="payoutDetails">Реквизиты для получения USDT</label>
+          <input type="text" id="payoutDetails" placeholder="Адрес кошелька TRC-20" maxlength="500" autocomplete="off">
+          <span class="error-msg">Укажите реквизиты для получения</span>
+        </div>
+      </div>
+
+      <div class="rate-card fade-up">
+        <div class="rate-row">
+          <span class="rate-label">Курс USDT/RUB</span>
+          <span class="rate-value" id="rateValue">—</span>
+        </div>
+        <div class="rate-row rate-row-total">
+          <span class="rate-label">К оплате (RUB)</span>
+          <span class="rate-value rate-total" id="payTotal">—</span>
+        </div>
+        <div class="rate-hint">Оплата принимается только в RUB</div>
+        <div class="rate-update" id="rateUpdate"></div>
+      </div>
+
+      <button type="button" class="btn-primary fade-up" id="nextBtn">Далее</button>
+
+    </div>
+  </div>
+
+  <!-- Screen: Payment (Step 2) -->
+  <div id="screenPayment" class="screen">
+    <div class="container">
+
+      <div class="page-header">
+        <h1>Оплата заявки</h1>
+        <div class="timer-badge" id="timerBadge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="timerText">30:00</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Детали заявки
+        </div>
+        <div class="summary-row">
+          <span>Заявка</span>
+          <span class="summary-val" id="payOrderId">—</span>
+        </div>
+        <div class="summary-row">
+          <span>Получение</span>
+          <span class="summary-val" id="payReceiveAmount">— USDT</span>
+        </div>
+        <div class="summary-row">
+          <span>Курс</span>
+          <span class="summary-val" id="payRate">—</span>
+        </div>
+        <div class="summary-row summary-highlight">
+          <span>К оплате</span>
+          <span class="summary-val summary-total" id="payAmountRub">— ₽</span>
+        </div>
+      </div>
+
+      <div class="requisites-card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Реквизиты для оплаты
+        </div>
+        <div class="req-row">
+          <span class="req-label">Реквизиты</span>
+          <span class="req-value" id="payRequisites">—</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Загрузка чека
+        </div>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept="image/jpeg,image/png">
+          <div class="upload-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
           </div>
-          <input type="hidden" id="currency" value="RUB">
-          <span class="error-msg">Выберите валюту</span>
+          <div class="upload-text"><strong>Нажмите</strong> или перетащите файл сюда</div>
+          <div class="upload-hint">JPG или PNG, до 4.5 МБ</div>
         </div>
-        <div class="field" data-required>
-          <label for="amount">Сумма оплаты</label>
-          <input type="text" id="amount" inputmode="numeric" placeholder="Например: 1500" pattern="[0-9]*" maxlength="15">
-          <span class="error-msg">Укажите сумму оплаты (только цифры)</span>
+        <div class="file-preview" id="filePreview">
+          <img id="previewImg" src="" alt="preview">
+          <span class="file-name" id="fileName"></span>
+          <button type="button" class="remove-btn" id="removeFile" title="Удалить">&times;</button>
         </div>
-        <div class="field">
-          <label for="comment">Комментарий <span style="color:var(--text-hint)">(необязательно)</span></label>
-          <textarea id="comment" placeholder="Дополнительная информация..." maxlength="500"></textarea>
-        </div>
-        <div style="position:absolute;left:-9999px;height:0;overflow:hidden" aria-hidden="true">
-          <input type="text" id="_hp" tabindex="-1" autocomplete="off">
-        </div>
-      </form>
+      </div>
+
+      <button type="button" class="btn-primary" id="submitBtn">Отправить заявку</button>
+
     </div>
+  </div>
 
-    <div class="card fade-up">
-      <div class="card-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Загрузка чека
+  <!-- Screen: My Orders -->
+  <div id="screenOrders" class="screen">
+    <div class="container">
+
+      <div class="page-header fade-up">
+        <h1>Мои заявки</h1>
+        <div class="subtitle">История ваших заявок</div>
       </div>
-      <div class="upload-zone" id="uploadZone">
-        <input type="file" id="fileInput" accept="image/jpeg,image/png">
-        <div class="upload-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-        </div>
-        <div class="upload-text"><strong>Нажмите</strong> или перетащите файл сюда</div>
-        <div class="upload-hint">JPG или PNG, до 4.5 МБ</div>
+
+      <div id="ordersList" class="orders-list">
+        <div class="orders-loading" id="ordersLoading">Загрузка...</div>
+        <div class="orders-empty" id="ordersEmpty" style="display:none">У вас пока нет заявок</div>
       </div>
-      <div class="file-preview" id="filePreview">
-        <img id="previewImg" src="" alt="preview">
-        <span class="file-name" id="fileName"></span>
-        <button type="button" class="remove-btn" id="removeFile" title="Удалить">&times;</button>
-      </div>
+
     </div>
+  </div>
 
-    <button type="button" class="btn-primary fade-up" id="submitBtn">Создать заявку</button>
-
+  <!-- Screen: Error (no Telegram) -->
+  <div id="screenError" class="screen">
+    <div class="container error-container">
+      <div class="error-icon">⚠️</div>
+      <h2>Откройте через Telegram</h2>
+      <p>Это приложение работает только через Telegram бота.</p>
+    </div>
   </div>
 
   <footer class="page-footer">
@@ -151,6 +193,7 @@
 
 </div>
 
+<!-- Success Modal -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-check">
@@ -158,31 +201,26 @@
         <polyline points="5 13 10 18 20 6"/>
       </svg>
     </div>
-    <h3>Заявка создана</h3>
-    <p>Ожидайте ответа. Мы свяжемся с вами в ближайшее время.</p>
+    <h3>Заявка отправлена</h3>
+    <p>Ваша заявка принята и находится на модерации.</p>
     <div class="modal-details">
       <div class="detail-row">
         <span class="detail-label">Номер заявки</span>
         <span class="detail-value" id="modalOrderId">—</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Уникальный код</span>
-        <span class="detail-value" id="modalPassword" style="font-family:monospace;letter-spacing:1px;color:var(--teal-light)">—</span>
+        <span class="detail-label">Сумма получения</span>
+        <span class="detail-value" id="modalReceive">—</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Сумма</span>
-        <span class="detail-value" id="modalAmount">—</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Валюта</span>
-        <span class="detail-value" id="modalCurrency">RUB — ₽</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Номер карты</span>
-        <span class="detail-value">7777 7777 7777 7777</span>
+        <span class="detail-label">Сумма оплаты</span>
+        <span class="detail-value" id="modalPay">—</span>
       </div>
     </div>
-    <button type="button" class="btn-modal-close" id="modalCloseBtn">Закрыть</button>
+    <div class="modal-buttons">
+      <button type="button" class="btn-modal-close" id="modalOrdersBtn">Мои заявки</button>
+      <button type="button" class="btn-modal-secondary" id="modalCloseBtn">Закрыть</button>
+    </div>
   </div>
 </div>
 
