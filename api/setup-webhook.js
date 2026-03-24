@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
         body: JSON.stringify({
           url: webhookUrl,
           secret_token: process.env.WEBHOOK_SECRET,
-          allowed_updates: ['callback_query']
+          allowed_updates: ['message', 'callback_query']
         })
       }
     );
