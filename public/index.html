@@ -6,6 +6,7 @@
   <title>ALPINA PAY-OUT</title>
   <link rel="icon" type="image/webp" href="images/logo/IMG_1425.WEBP">
   <link rel="stylesheet" href="css/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
@@ -29,8 +30,8 @@
     <div class="container">
 
       <div class="page-header fade-up">
-        <h1>Обмен USDT</h1>
-        <div class="subtitle">Оформите заявку на получение USDT</div>
+        <h1>Покупка USDT</h1>
+        <div class="subtitle">Оформите заявку на покупку USDT за RUB</div>
       </div>
 
       <div class="card fade-up">
@@ -51,9 +52,9 @@
           Данные заявки
         </div>
         <div class="field" data-required>
-          <label for="receiveAmount">Сумма получения (USDT)</label>
-          <input type="text" id="receiveAmount" inputmode="decimal" placeholder="Например: 100" maxlength="15" autocomplete="off">
-          <span class="error-msg">Укажите сумму получения</span>
+          <label for="amountRub">Сумма оплаты (RUB)</label>
+          <input type="text" id="amountRub" inputmode="decimal" placeholder="Например: 10000" maxlength="15" autocomplete="off">
+          <span class="error-msg">Укажите сумму оплаты</span>
         </div>
         <div class="field" data-required>
           <label for="payoutDetails">Реквизиты для получения USDT</label>
@@ -68,10 +69,10 @@
           <span class="rate-value" id="rateValue">—</span>
         </div>
         <div class="rate-row rate-row-total">
-          <span class="rate-label">К оплате (RUB)</span>
-          <span class="rate-value rate-total" id="payTotal">—</span>
+          <span class="rate-label">Вы получите (USDT)</span>
+          <span class="rate-value rate-total" id="receiveTotal">—</span>
         </div>
-        <div class="rate-hint">Оплата принимается только в RUB</div>
+        <div class="rate-hint">Минимальная сумма: 100 RUB</div>
         <div class="rate-update" id="rateUpdate"></div>
       </div>
 
@@ -102,16 +103,16 @@
           <span class="summary-val" id="payOrderId">—</span>
         </div>
         <div class="summary-row">
+          <span>Оплата</span>
+          <span class="summary-val summary-total" id="payAmountRub">— ₽</span>
+        </div>
+        <div class="summary-row">
           <span>Получение</span>
           <span class="summary-val" id="payReceiveAmount">— USDT</span>
         </div>
         <div class="summary-row">
           <span>Курс</span>
           <span class="summary-val" id="payRate">—</span>
-        </div>
-        <div class="summary-row summary-highlight">
-          <span>К оплате</span>
-          <span class="summary-val summary-total" id="payAmountRub">— ₽</span>
         </div>
       </div>
 
@@ -178,12 +179,12 @@
         <span class="detail-value" id="modalOrderId">—</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Сумма получения</span>
-        <span class="detail-value" id="modalReceive">—</span>
+        <span class="detail-label">Оплата</span>
+        <span class="detail-value" id="modalPay">—</span>
       </div>
       <div class="detail-row">
-        <span class="detail-label">Сумма оплаты</span>
-        <span class="detail-value" id="modalPay">—</span>
+        <span class="detail-label">Получение</span>
+        <span class="detail-value" id="modalReceive">—</span>
       </div>
     </div>
     <div class="modal-buttons">

@@ -5,6 +5,16 @@
 
   document.documentElement.setAttribute('data-theme', 'dark');
 
+  /* ========== Telegram WebApp ========== */
+
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var tgInitData = tg ? tg.initData : '';
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+
   /* ========== DOM Elements ========== */
 
   var screens = {
@@ -12,10 +22,10 @@
     payment: document.getElementById('screenPayment')
   };
 
-  var receiveAmountInput = document.getElementById('receiveAmount');
+  var amountRubInput = document.getElementById('amountRub');
   var payoutDetailsInput = document.getElementById('payoutDetails');
   var rateValueEl = document.getElementById('rateValue');
-  var payTotalEl = document.getElementById('payTotal');
+  var receiveTotalEl = document.getElementById('receiveTotal');
   var rateUpdateEl = document.getElementById('rateUpdate');
   var nextBtn = document.getElementById('nextBtn');
 
@@ -89,7 +99,7 @@
         if (data.ok && data.finalRate) {
           currentRate = data.finalRate;
           rateValueEl.textContent = data.finalRate.toFixed(2) + ' \u20BD';
-          updatePayTotal();
+          updateReceiveTotal();
           var now = new Date();
           rateUpdateEl.textContent = '\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ' + now.toLocaleTimeString('ru-RU');
         }
@@ -99,13 +109,13 @@
     xhr.send();
   }
 
-  function updatePayTotal() {
-    var val = parseFloat(receiveAmountInput.value);
-    if (currentRate && val > 0) {
-      var total = (val * currentRate).toFixed(2);
-      payTotalEl.textContent = total + ' \u20BD';
+  function updateReceiveTotal() {
+    var val = parseFloat(amountRubInput.value);
+    if (currentRate && currentRate > 0 && val > 0) {
+      var usdt = (val / currentRate).toFixed(2);
+      receiveTotalEl.textContent = usdt + ' USDT';
     } else {
-      payTotalEl.textContent = '\u2014';
+      receiveTotalEl.textContent = '\u2014';
     }
   }
 
@@ -122,14 +132,14 @@
     }
   }
 
-  receiveAmountInput.addEventListener('input', function () {
-    var v = receiveAmountInput.value.replace(/[^0-9.]/g, '');
+  amountRubInput.addEventListener('input', function () {
+    var v = amountRubInput.value.replace(/[^0-9.]/g, '');
     var parts = v.split('.');
     if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
     if (parts[1] && parts[1].length > 2) v = parts[0] + '.' + parts[1].substring(0, 2);
-    receiveAmountInput.value = v;
-    updatePayTotal();
-    receiveAmountInput.closest('.field').classList.remove('error');
+    amountRubInput.value = v;
+    updateReceiveTotal();
+    amountRubInput.closest('.field').classList.remove('error');
   });
 
   payoutDetailsInput.addEventListener('input', function () {
@@ -140,11 +150,15 @@
 
   nextBtn.addEventListener('click', function () {
     var valid = true;
-    var amount = parseFloat(receiveAmountInput.value);
+    var amount = parseFloat(amountRubInput.value);
 
     if (!amount || amount <= 0) {
-      receiveAmountInput.closest('.field').classList.add('error');
+      amountRubInput.closest('.field').classList.add('error');
       valid = false;
+    } else if (amount < 100) {
+      amountRubInput.closest('.field').classList.add('error');
+      showAlert('\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u043C\u043C\u0430: 100 RUB');
+      return;
     }
 
     var details = payoutDetailsInput.value.trim();
@@ -166,6 +180,9 @@
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/create-order');
     xhr.setRequestHeader('Content-Type', 'application/json');
+    if (tgInitData) {
+      xhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+    }
     xhr.onload = function () {
       try {
         var data = JSON.parse(xhr.responseText);
@@ -178,10 +195,10 @@
 
         currentOrder = data;
 
-        payOrderIdEl.textContent = data.orderId;
+        payOrderIdEl.textContent = data.seqId ? '#' + data.seqId : data.orderId;
+        payAmountRubEl.textContent = data.payAmount.toFixed(2) + ' \u20BD';
         payReceiveAmountEl.textContent = data.receiveAmount + ' ' + data.receiveCurrency;
         payRateEl.textContent = data.finalRate.toFixed(2) + ' \u20BD';
-        payAmountRubEl.textContent = data.payAmount.toFixed(2) + ' \u20BD';
         payRequisitesEl.textContent = data.paymentRequisites || '\u2014';
 
         timerBadgeEl.classList.remove('warning', 'expired');
@@ -210,7 +227,7 @@
       nextBtn.disabled = false;
       nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
     };
-    xhr.send(JSON.stringify({ receiveAmount: amount, payoutDetails: details }));
+    xhr.send(JSON.stringify({ amountRub: amount, payoutDetails: details }));
   });
 
   /* ========== Timer ========== */
@@ -324,6 +341,9 @@
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/submit');
+    if (tgInitData) {
+      xhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+    }
     xhr.onload = function () {
       try {
         var data = JSON.parse(xhr.responseText);
@@ -336,9 +356,9 @@
 
         if (timerInterval) clearInterval(timerInterval);
 
-        modalOrderIdEl.textContent = currentOrder.orderId;
-        modalReceiveEl.textContent = currentOrder.receiveAmount + ' ' + currentOrder.receiveCurrency;
+        modalOrderIdEl.textContent = currentOrder.seqId ? '#' + currentOrder.seqId : currentOrder.orderId;
         modalPayEl.textContent = currentOrder.payAmount.toFixed(2) + ' \u20BD';
+        modalReceiveEl.textContent = currentOrder.receiveAmount + ' ' + currentOrder.receiveCurrency;
 
         var svg = document.querySelector('.modal-check svg');
         var clone = svg.cloneNode(true);
@@ -346,7 +366,7 @@
 
         modalOverlay.classList.add('active');
 
-        receiveAmountInput.value = '';
+        amountRubInput.value = '';
         payoutDetailsInput.value = '';
         fileInput.value = '';
         previewImg.src = '';
@@ -384,19 +404,19 @@
   /* ========== Helpers ========== */
 
   var reasonMessages = {
-    cooldown_active: 'Подождите немного перед следующей заявкой',
-    rate_10m: 'Слишком много заявок, попробуйте позже',
-    rate_24h: 'Слишком много заявок за сутки',
-    duplicate: 'Похожая заявка уже была отправлена',
-    too_fast: 'Форма отправлена слишком быстро',
-    validation: 'Проверьте введённые данные'
+    cooldown_active: '\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043D\u0435\u043C\u043D\u043E\u0433\u043E \u043F\u0435\u0440\u0435\u0434 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u0439 \u0437\u0430\u044F\u0432\u043A\u043E\u0439',
+    rate_10m: '\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u044F\u0432\u043E\u043A, \u043F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435',
+    rate_24h: '\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u044F\u0432\u043E\u043A \u0437\u0430 \u0441\u0443\u0442\u043A\u0438',
+    duplicate: '\u041F\u043E\u0445\u043E\u0436\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u0431\u044B\u043B\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430',
+    too_fast: '\u0424\u043E\u0440\u043C\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u044B\u0441\u0442\u0440\u043E',
+    validation: '\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0432\u0432\u0435\u0434\u0451\u043D\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435'
   };
 
   function getErrorMessage(data) {
     if (data.reason && reasonMessages[data.reason]) {
       return reasonMessages[data.reason];
     }
-    return data.error || 'Ошибка сервера';
+    return data.error || '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430';
   }
 
   function showAlert(msg) {
