@@ -102,7 +102,23 @@ module.exports = async (req, res) => {
       if (cd) {
         return res.status(429).json({ ok: false, reason: 'cooldown_active', error: '\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043F\u0435\u0440\u0435\u0434 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435\u043C \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u0438' });
       }
-      await r.set(`order_cd:${ip}`, '1', { ex: 30 });
+
+      const existingIds = await r.lrange('user:orders:' + telegramId, 0, 49);
+      if (existingIds && existingIds.length > 0) {
+        for (const oid of existingIds) {
+          const raw = await r.get('order:' + oid);
+          if (!raw) continue;
+          const existing = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (existing.status === 'created' && existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
+            existing.status = 'expired';
+            await r.set('order:' + oid, JSON.stringify(existing), { ex: 86400 });
+            continue;
+          }
+          if (existing.status === 'created' || existing.status === 'pending') {
+            return res.status(409).json({ ok: false, reason: 'active_order', error: '\u0423 \u0432\u0430\u0441 \u0443\u0436\u0435 \u0435\u0441\u0442\u044C \u0430\u043A\u0442\u0438\u0432\u043D\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430. \u0414\u043E\u0436\u0434\u0438\u0442\u0435\u0441\u044C \u0435\u0451 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u0447\u0435\u043D\u0438\u044F \u0441\u0440\u043E\u043A\u0430.' });
+          }
+        }
+      }
     }
 
     const { baseRate, finalRate, markupPercent } = await getCurrentRate();
@@ -147,6 +163,7 @@ module.exports = async (req, res) => {
       if (telegramId) {
         await r.lpush('user:orders:' + telegramId, orderId);
       }
+      await r.set(`order_cd:${ip}`, '1', { ex: 30 });
     }
 
     return res.status(200).json({
