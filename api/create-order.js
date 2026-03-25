@@ -1,15 +1,19 @@
 const crypto = require('crypto');
 const fetch = require('node-fetch');
-const { validateInitData } = require('./_auth');
-const { getDb } = require('./_db');
 const { getRedis } = require('./_redis');
 
-const ORDER_TTL_MS = 30 * 60 * 1000;
+const ORDER_TTL = 1800; // 30 minutes
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
   const rand = crypto.randomBytes(3).toString('hex').toUpperCase();
   return 'ALP-' + ts + '-' + rand;
+}
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.headers['x-real-ip'] || 'unknown';
 }
 
 async function getCurrentRate() {
@@ -54,12 +58,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const initData = req.headers['x-telegram-init-data'];
-    const user = validateInitData(initData);
-    if (!user) {
-      return res.status(403).json({ ok: false, error: '\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F' });
-    }
-
     const { receiveAmount, payoutDetails } = req.body || {};
 
     if (!receiveAmount || isNaN(receiveAmount) || parseFloat(receiveAmount) <= 0) {
@@ -75,50 +73,42 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: '\u0421\u0443\u043C\u043C\u0430 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u0430\u044F' });
     }
 
+    const ip = getClientIp(req);
     const r = getRedis();
+
     if (r) {
-      const tgId = String(user.id);
-      const cd = await r.get(`order_cd:${tgId}`);
+      const cd = await r.get(`order_cd:${ip}`);
       if (cd) {
         return res.status(429).json({ ok: false, error: '\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043F\u0435\u0440\u0435\u0434 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435\u043C \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u0438' });
       }
-      await r.set(`order_cd:${tgId}`, '1', { ex: 30 });
+      await r.set(`order_cd:${ip}`, '1', { ex: 30 });
     }
 
     const { baseRate, finalRate, markupPercent } = await getCurrentRate();
     const payAmount = Math.round(amount * finalRate * 100) / 100;
 
-    const db = getDb();
-
-    await db.from('users').upsert({
-      telegram_id: user.id,
-      username: user.username || null,
-      first_name: user.first_name || null
-    }, { onConflict: 'telegram_id' });
-
     const orderId = generateOrderId();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + ORDER_TTL_MS);
+    const expiresAt = new Date(now.getTime() + ORDER_TTL * 1000);
 
-    const { error: insertError } = await db.from('orders').insert({
-      order_id: orderId,
-      telegram_id: user.id,
-      receive_currency: 'USDT',
-      receive_amount: amount,
-      pay_currency: 'RUB',
-      pay_amount: payAmount,
-      base_rate: baseRate,
-      markup_percent: markupPercent,
-      final_rate: finalRate,
-      payout_details: payoutDetails.trim().substring(0, 500),
+    const orderData = {
+      orderId,
+      receiveAmount: amount,
+      receiveCurrency: 'USDT',
+      payAmount,
+      payCurrency: 'RUB',
+      baseRate,
+      finalRate,
+      markupPercent,
+      payoutDetails: payoutDetails.trim().substring(0, 500),
       status: 'created',
-      created_at: now.toISOString(),
-      expires_at: expiresAt.toISOString()
-    });
+      clientIp: ip,
+      createdAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString()
+    };
 
-    if (insertError) {
-      console.error('DB insert error:', insertError);
-      return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438' });
+    if (r) {
+      await r.set(`order:${orderId}`, JSON.stringify(orderData), { ex: ORDER_TTL });
     }
 
     return res.status(200).json({

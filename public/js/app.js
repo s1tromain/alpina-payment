@@ -1,34 +1,16 @@
 (() => {
   'use strict';
 
-  /* ========== Telegram WebApp ========== */
-
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if (!tg || !tg.initData) {
-    document.getElementById('screenError').classList.add('active');
-    return;
-  }
-
-  tg.ready();
-  tg.expand();
-
-  const initData = tg.initData;
-
   /* ========== Theme ========== */
 
-  var colorScheme = tg.colorScheme || 'dark';
-  document.documentElement.setAttribute('data-theme', colorScheme);
+  document.documentElement.setAttribute('data-theme', 'dark');
 
   /* ========== DOM Elements ========== */
 
   var screens = {
     exchange: document.getElementById('screenExchange'),
-    payment: document.getElementById('screenPayment'),
-    orders: document.getElementById('screenOrders'),
-    error: document.getElementById('screenError')
+    payment: document.getElementById('screenPayment')
   };
-
-  var tabs = document.querySelectorAll('.tab');
 
   var receiveAmountInput = document.getElementById('receiveAmount');
   var payoutDetailsInput = document.getElementById('payoutDetails');
@@ -52,14 +34,10 @@
   var fileNameEl = document.getElementById('fileName');
   var removeFileBtn = document.getElementById('removeFile');
   var submitBtn = document.getElementById('submitBtn');
-
-  var ordersListEl = document.getElementById('ordersList');
-  var ordersLoadingEl = document.getElementById('ordersLoading');
-  var ordersEmptyEl = document.getElementById('ordersEmpty');
+  var backBtn = document.getElementById('backBtn');
 
   var modalOverlay = document.getElementById('modalOverlay');
   var modalCloseBtn = document.getElementById('modalCloseBtn');
-  var modalOrdersBtn = document.getElementById('modalOrdersBtn');
   var modalOrderIdEl = document.getElementById('modalOrderId');
   var modalReceiveEl = document.getElementById('modalReceive');
   var modalPayEl = document.getElementById('modalPay');
@@ -82,38 +60,14 @@
     });
     if (screens[name]) screens[name].classList.add('active');
 
-    tabs.forEach(function (t) {
-      var isActive = t.dataset.tab === name || (name === 'payment' && t.dataset.tab === 'exchange');
-      t.classList.toggle('active', isActive);
-    });
-
-    if (name === 'payment') {
-      tg.BackButton.show();
-    } else {
-      tg.BackButton.hide();
-    }
-
     if (name === 'exchange') {
       startRateUpdates();
     } else {
       stopRateUpdates();
     }
-
-    if (name === 'orders') {
-      loadOrders();
-    }
   }
 
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      if (currentScreen === 'payment') {
-        return;
-      }
-      showScreen(tab.dataset.tab);
-    });
-  });
-
-  tg.BackButton.onClick(function () {
+  backBtn.addEventListener('click', function () {
     if (currentScreen === 'payment') {
       if (timerInterval) clearInterval(timerInterval);
       timerBadgeEl.classList.remove('warning', 'expired');
@@ -129,7 +83,6 @@
   function fetchRate() {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/api/rate');
-    xhr.setRequestHeader('X-Telegram-Init-Data', initData);
     xhr.onload = function () {
       try {
         var data = JSON.parse(xhr.responseText);
@@ -213,7 +166,6 @@
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/create-order');
     xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('X-Telegram-Init-Data', initData);
     xhr.onload = function () {
       try {
         var data = JSON.parse(xhr.responseText);
@@ -372,7 +324,6 @@
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/submit');
-    xhr.setRequestHeader('X-Telegram-Init-Data', initData);
     xhr.onload = function () {
       try {
         var data = JSON.parse(xhr.responseText);
@@ -421,128 +372,23 @@
 
   function closeModal() {
     modalOverlay.classList.remove('active');
+    showScreen('exchange');
   }
 
-  modalOrdersBtn.addEventListener('click', function () {
-    closeModal();
-    showScreen('orders');
-  });
-
-  modalCloseBtn.addEventListener('click', function () {
-    closeModal();
-    tg.close();
-  });
+  modalCloseBtn.addEventListener('click', closeModal);
 
   modalOverlay.addEventListener('click', function (e) {
-    if (e.target === modalOverlay) {
-      closeModal();
-      showScreen('orders');
-    }
+    if (e.target === modalOverlay) closeModal();
   });
-
-  /* ========== Orders ========== */
-
-  var STATUS_LABELS = {
-    pending: '\u0412 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0435',
-    approved: '\u041E\u0434\u043E\u0431\u0440\u0435\u043D\u0430',
-    rejected: '\u041E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430',
-    expired: '\u0418\u0441\u0442\u0435\u043A\u043B\u0430'
-  };
-
-  var STATUS_CLASSES = {
-    pending: 'status-pending',
-    approved: 'status-approved',
-    rejected: 'status-rejected',
-    expired: 'status-expired'
-  };
-
-  function loadOrders() {
-    ordersLoadingEl.style.display = 'block';
-    ordersEmptyEl.style.display = 'none';
-
-    var existing = ordersListEl.querySelectorAll('.order-card');
-    for (var i = 0; i < existing.length; i++) {
-      existing[i].remove();
-    }
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/orders');
-    xhr.setRequestHeader('X-Telegram-Init-Data', initData);
-    xhr.onload = function () {
-      ordersLoadingEl.style.display = 'none';
-      try {
-        var data = JSON.parse(xhr.responseText);
-        if (!data.ok || !data.orders || data.orders.length === 0) {
-          ordersEmptyEl.style.display = 'block';
-          return;
-        }
-        data.orders.forEach(function (order) {
-          var card = createOrderCard(order);
-          ordersListEl.appendChild(card);
-        });
-      } catch (e) {
-        ordersEmptyEl.style.display = 'block';
-        ordersEmptyEl.textContent = '\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0437\u0430\u044F\u0432\u043E\u043A';
-      }
-    };
-    xhr.onerror = function () {
-      ordersLoadingEl.style.display = 'none';
-      ordersEmptyEl.style.display = 'block';
-      ordersEmptyEl.textContent = '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438';
-    };
-    xhr.send();
-  }
-
-  function createOrderCard(order) {
-    var div = document.createElement('div');
-    div.className = 'order-card fade-up';
-
-    var dateStr = '';
-    try {
-      var d = new Date(order.created_at);
-      dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-        ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      dateStr = order.created_at || '';
-    }
-
-    var statusLabel = STATUS_LABELS[order.status] || order.status;
-    var statusClass = STATUS_CLASSES[order.status] || '';
-
-    div.innerHTML =
-      '<div class="order-header">' +
-        '<span class="order-id">' + escHtml(order.order_id) + '</span>' +
-        '<span class="order-status ' + statusClass + '">' + escHtml(statusLabel) + '</span>' +
-      '</div>' +
-      '<div class="order-body">' +
-        '<div class="order-row"><span>\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435</span><span>' + escHtml(String(order.receive_amount)) + ' ' + escHtml(order.receive_currency) + '</span></div>' +
-        '<div class="order-row"><span>\u041E\u043F\u043B\u0430\u0442\u0430</span><span>' + escHtml(String(order.pay_amount)) + ' ' + escHtml(order.pay_currency) + '</span></div>' +
-        '<div class="order-row"><span>\u0414\u0430\u0442\u0430</span><span>' + escHtml(dateStr) + '</span></div>' +
-      '</div>';
-
-    return div;
-  }
-
-  function escHtml(str) {
-    var el = document.createElement('span');
-    el.textContent = str;
-    return el.innerHTML;
-  }
 
   /* ========== Helpers ========== */
 
   function showAlert(msg) {
-    if (tg && tg.showAlert) {
-      tg.showAlert(msg);
-    } else {
-      alert(msg);
-    }
+    alert(msg);
   }
 
   /* ========== Init ========== */
 
-  var params = new URLSearchParams(window.location.search);
-  var startScreen = params.get('screen') === 'orders' ? 'orders' : 'exchange';
-  showScreen(startScreen);
+  showScreen('exchange');
 
 })();

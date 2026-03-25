@@ -1,12 +1,17 @@
-const { getDb } = require('./_db');
-const { sendPlainMessage } = require('./_telegram');
-
 module.exports = async (req, res) => {
   if (req.headers.authorization !== 'Bearer ' + process.env.CRON_SECRET) {
     return res.status(401).json({ ok: false });
   }
 
+  // Orders are stored in Redis with TTL — they expire automatically.
+  // DB-based expiration only runs when Supabase is configured.
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    return res.status(200).json({ ok: true, expired: 0 });
+  }
+
   try {
+    const { getDb } = require('./_db');
+    const { sendPlainMessage } = require('./_telegram');
     const db = getDb();
 
     const { data: expiredOrders } = await db

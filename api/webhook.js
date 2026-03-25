@@ -1,8 +1,8 @@
 const { editMessageCaption, answerCallbackQuery, sendPlainMessage, esc } = require('./_telegram');
 const { getRedis } = require('./_redis');
-const { getDb } = require('./_db');
 
 const MAX_BODY_SIZE = 64 * 1024;
+const PROCESSED_TTL = 86400;
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -28,13 +28,6 @@ function readBody(req) {
   });
 }
 
-const STATUS_MESSAGES = {
-  pending: '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043F\u0440\u0438\u043D\u044F\u0442\u0430 \u0438 \u043D\u0430\u0445\u043E\u0434\u0438\u0442\u0441\u044F \u0432 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0435.',
-  approved: '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043E\u0434\u043E\u0431\u0440\u0435\u043D\u0430. \u041E\u0436\u0438\u0434\u0430\u0439\u0442\u0435 \u043F\u043E\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F \u0432\u0430\u0448\u0438\u0445 \u0441\u0440\u0435\u0434\u0441\u0442\u0432.',
-  rejected: '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430.',
-  expired: '\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0435 \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.'
-};
-
 async function handleMessage(msg, res) {
   if (!msg.text || !msg.from || !msg.chat || msg.chat.type !== 'private') {
     return res.status(200).json({ ok: true });
@@ -45,25 +38,12 @@ async function handleMessage(msg, res) {
   const text = msg.text.trim();
 
   if (text === '/start') {
-    const miniAppUrl = process.env.MINI_APP_URL;
-    if (!miniAppUrl) {
-      await sendPlainMessage(chatId, '\u0411\u043E\u0442 \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D.');
-      return res.status(200).json({ ok: true });
-    }
+    const siteUrl = process.env.SITE_URL || '';
+    const message = siteUrl
+      ? '\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C \u0432 ALPINA PAY-OUT!\n\n\u041E\u0444\u043E\u0440\u043C\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443 \u043C\u043E\u0436\u043D\u043E \u043D\u0430 \u0441\u0430\u0439\u0442\u0435:\n' + siteUrl
+      : '\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C \u0432 ALPINA PAY-OUT!';
 
-    const keyboard = {
-      keyboard: [
-        [{ text: '\uD83D\uDCF1 \u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435', web_app: { url: miniAppUrl } }],
-        [{ text: '\uD83D\uDCCB \u041C\u043E\u0438 \u0437\u0430\u044F\u0432\u043A\u0438', web_app: { url: miniAppUrl + '?screen=orders' } }]
-      ],
-      resize_keyboard: true
-    };
-
-    await sendPlainMessage(
-      chatId,
-      '\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C \u0432 ALPINA PAY-OUT!\n\n\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435:',
-      keyboard
-    );
+    await sendPlainMessage(chatId, message);
     return res.status(200).json({ ok: true });
   }
 
@@ -128,17 +108,19 @@ async function handleCallback(cb, res) {
     return res.status(200).json({ ok: true });
   }
 
-  const db = getDb();
-  const { data: order, error: fetchErr } = await db
-    .from('orders')
-    .select('*')
-    .eq('order_id', orderId)
-    .single();
+  const r = getRedis();
+  if (!r) {
+    await answerCallbackQuery(cb.id, '\u0421\u0435\u0440\u0432\u0438\u0441 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D');
+    return res.status(200).json({ ok: true });
+  }
 
-  if (fetchErr || !order) {
+  const raw = await r.get(`order:${orderId}`);
+  if (!raw) {
     await answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430');
     return res.status(200).json({ ok: true });
   }
+
+  const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
   if (order.status !== 'pending') {
     await answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u0430');
@@ -148,11 +130,10 @@ async function handleCallback(cb, res) {
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
   const adminName = cb.from.first_name || 'Admin';
 
-  await db.from('orders').update({
-    status: newStatus,
-    processed_by: adminName + ' (' + fromId + ')',
-    processed_at: new Date().toISOString()
-  }).eq('order_id', orderId);
+  order.status = newStatus;
+  order.processedBy = adminName + ' (' + fromId + ')';
+  order.processedAt = new Date().toISOString();
+  await r.set(`order:${orderId}`, JSON.stringify(order), { ex: PROCESSED_TTL });
 
   const chatId = cb.message.chat.id;
   const messageId = cb.message.message_id;
@@ -168,11 +149,6 @@ async function handleCallback(cb, res) {
   const newCaption = existingCaption.replace(/\u23F3[^\n]*/s, statusLine);
 
   await editMessageCaption(chatId, messageId, newCaption, { inline_keyboard: [] });
-
-  const notifMsg = STATUS_MESSAGES[newStatus];
-  if (notifMsg) {
-    await sendPlainMessage(order.telegram_id, notifMsg);
-  }
 
   const alertText = action === 'approve'
     ? '\u0417\u0430\u044F\u0432\u043A\u0430 ' + orderId + ' \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0430'

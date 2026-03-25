@@ -6,7 +6,6 @@
   <title>ALPINA PAY-OUT</title>
   <link rel="icon" type="image/webp" href="images/logo/IMG_1425.WEBP">
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
@@ -24,11 +23,6 @@
       </div>
     </div>
   </header>
-
-  <nav class="tabs" id="navTabs">
-    <button class="tab active" data-tab="exchange">Обмен</button>
-    <button class="tab" data-tab="orders">Мои заявки</button>
-  </nav>
 
   <!-- Screen: Exchange (Step 1) -->
   <div id="screenExchange" class="screen active">
@@ -157,33 +151,8 @@
       </div>
 
       <button type="button" class="btn-primary" id="submitBtn">Отправить заявку</button>
+      <button type="button" class="btn-back" id="backBtn">← Назад</button>
 
-    </div>
-  </div>
-
-  <!-- Screen: My Orders -->
-  <div id="screenOrders" class="screen">
-    <div class="container">
-
-      <div class="page-header fade-up">
-        <h1>Мои заявки</h1>
-        <div class="subtitle">История ваших заявок</div>
-      </div>
-
-      <div id="ordersList" class="orders-list">
-        <div class="orders-loading" id="ordersLoading">Загрузка...</div>
-        <div class="orders-empty" id="ordersEmpty" style="display:none">У вас пока нет заявок</div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Screen: Error (no Telegram) -->
-  <div id="screenError" class="screen">
-    <div class="container error-container">
-      <div class="error-icon">⚠️</div>
-      <h2>Откройте через Telegram</h2>
-      <p>Это приложение работает только через Telegram бота.</p>
     </div>
   </div>
 
@@ -218,8 +187,7 @@
       </div>
     </div>
     <div class="modal-buttons">
-      <button type="button" class="btn-modal-close" id="modalOrdersBtn">Мои заявки</button>
-      <button type="button" class="btn-modal-secondary" id="modalCloseBtn">Закрыть</button>
+      <button type="button" class="btn-modal-close" id="modalCloseBtn">Закрыть</button>
     </div>
   </div>
 </div>

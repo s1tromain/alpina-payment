@@ -1,12 +1,18 @@
 const Busboy = require('busboy');
-const { validateInitData } = require('./_auth');
-const { getDb } = require('./_db');
-const { esc, sendPhotoBuffer, sendMessage, sendPlainMessage } = require('./_telegram');
-const { recordSubmission } = require('./_ratelimit');
+const { getRedis } = require('./_redis');
+const { esc, sendPhotoBuffer, sendMessage } = require('./_telegram');
+const { checkAntiSpam, recordSubmission } = require('./_ratelimit');
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png'];
 const MAX_FILE_SIZE = 4.5 * 1024 * 1024;
+const PENDING_TTL = 86400;
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.headers['x-real-ip'] || 'unknown';
+}
 
 function sanitizeFilename(name) {
   if (!name) return 'receipt.jpg';
@@ -57,24 +63,21 @@ function parseMultipart(req) {
   });
 }
 
-function buildCaption(order, username, spamFlag) {
+function buildCaption(order, spamFlag) {
   const lines = [];
 
   if (spamFlag) {
     lines.push('\u26A0\uFE0F *\u041F\u043E\u0434\u043E\u0437\u0440\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430* \\[' + esc(spamFlag) + '\\]', '');
   }
 
-  const userDisplay = username ? '@' + esc(username) : esc(String(order.telegram_id));
-
   lines.push(
     '\uD83D\uDCCB *\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430 ALPINA PAY\\-OUT*',
     '',
-    '\uD83C\uDD94 *\u041D\u043E\u043C\u0435\u0440:* `' + esc(order.order_id) + '`',
-    '\uD83D\uDC64 *\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C:* ' + userDisplay,
-    '\uD83D\uDCB0 *\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435:* ' + esc(String(order.receive_amount)) + ' ' + esc(order.receive_currency),
-    '\uD83D\uDCB3 *\u041E\u043F\u043B\u0430\u0442\u0430:* ' + esc(String(order.pay_amount)) + ' ' + esc(order.pay_currency),
-    '\uD83D\uDCCA *\u041A\u0443\u0440\u0441:* ' + esc(String(order.final_rate)),
-    '\uD83D\uDCDD *\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B:* ' + esc(order.payout_details),
+    '\uD83C\uDD94 *\u041D\u043E\u043C\u0435\u0440:* `' + esc(order.orderId) + '`',
+    '\uD83D\uDCB0 *\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435:* ' + esc(String(order.receiveAmount)) + ' ' + esc(order.receiveCurrency),
+    '\uD83D\uDCB3 *\u041E\u043F\u043B\u0430\u0442\u0430:* ' + esc(String(order.payAmount)) + ' ' + esc(order.payCurrency),
+    '\uD83D\uDCCA *\u041A\u0443\u0440\u0441:* ' + esc(String(order.finalRate)),
+    '\uD83D\uDCDD *\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B:* ' + esc(order.payoutDetails),
     '',
     '\u23F3 _\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438_'
   );
@@ -101,12 +104,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const initData = req.headers['x-telegram-init-data'];
-    const user = validateInitData(initData);
-    if (!user) {
-      return res.status(403).json({ ok: false, error: '\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F' });
-    }
-
     const { fields, fileBuffer, fileInfo, fileTruncated } = await parseMultipart(req);
 
     const { orderId } = fields;
@@ -122,40 +119,34 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: '\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u0435 \u0447\u0435\u043A (JPG \u0438\u043B\u0438 PNG)' });
     }
 
-    const db = getDb();
-    const { data: order, error: fetchErr } = await db
-      .from('orders')
-      .select('*')
-      .eq('order_id', orderId)
-      .eq('telegram_id', user.id)
-      .single();
-
-    if (fetchErr || !order) {
-      return res.status(404).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430' });
+    const r = getRedis();
+    if (!r) {
+      return res.status(500).json({ ok: false, error: '\u0421\u0435\u0440\u0432\u0438\u0441 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D' });
     }
+
+    const raw = await r.get(`order:${orderId}`);
+    if (!raw) {
+      return res.status(404).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u043A\u043B\u0430' });
+    }
+
+    const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
     if (order.status !== 'created') {
       return res.status(400).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u0430 \u0438\u043B\u0438 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430' });
     }
 
-    if (new Date(order.expires_at) < new Date()) {
-      await db.from('orders').update({ status: 'expired' }).eq('order_id', orderId);
+    if (new Date(order.expiresAt) < new Date()) {
+      await r.del(`order:${orderId}`);
       return res.status(400).json({ ok: false, error: '\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.' });
     }
 
+    const ip = getClientIp(req);
     let spamFlag = null;
-    const spam = await (async () => {
-      try {
-        const { checkAntiSpam } = require('./_ratelimit');
-        return await checkAntiSpam(req, {
-          telegramId: String(user.id),
-          amount: String(order.receive_amount),
-          currency: order.receive_currency
-        });
-      } catch (_) {
-        return { allowed: true, suspicious: false };
-      }
-    })();
+    const spam = await checkAntiSpam(req, {
+      telegramId: ip,
+      amount: String(order.receiveAmount),
+      currency: order.receiveCurrency
+    });
 
     if (!spam.allowed) {
       return res.status(429).json({ ok: false, error: spam.error });
@@ -164,7 +155,7 @@ module.exports = async (req, res) => {
       spamFlag = spam.reason;
     }
 
-    const caption = buildCaption(order, user.username, spamFlag);
+    const caption = buildCaption(order, spamFlag);
     const buttons = buildButtons(orderId);
     const safeFilename = sanitizeFilename(fileInfo.filename);
 
@@ -182,25 +173,15 @@ module.exports = async (req, res) => {
       }
     }
 
-    let receiptFileId = null;
-    if (channelResult.ok && channelResult.result && channelResult.result.photo) {
-      const photos = channelResult.result.photo;
-      receiptFileId = photos[photos.length - 1].file_id;
-    }
-
-    await db.from('orders').update({
-      status: 'pending',
-      telegram_channel_message_id: channelMessageId,
-      receipt_file_id: receiptFileId
-    }).eq('order_id', orderId);
+    order.status = 'pending';
+    order.channelMessageId = channelMessageId;
+    await r.set(`order:${orderId}`, JSON.stringify(order), { ex: PENDING_TTL });
 
     await recordSubmission({
-      telegramId: String(user.id),
-      amount: String(order.receive_amount),
-      currency: order.receive_currency
+      telegramId: ip,
+      amount: String(order.receiveAmount),
+      currency: order.receiveCurrency
     });
-
-    await sendPlainMessage(user.id, '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043F\u0440\u0438\u043D\u044F\u0442\u0430 \u0438 \u043D\u0430\u0445\u043E\u0434\u0438\u0442\u0441\u044F \u0432 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0435.');
 
     return res.status(200).json({ ok: true, orderId });
   } catch (err) {

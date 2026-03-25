@@ -698,6 +698,29 @@ body {
   transform: none;
 }
 
+/* ===== Back Button ===== */
+
+.btn-back {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  text-align: center;
+}
+
+.btn-back:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
 /* ===== Orders List ===== */
 
 .orders-list {
