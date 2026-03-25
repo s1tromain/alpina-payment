@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
 
   try {
     const { getDb } = require('./_db');
-    const { sendPlainMessage } = require('./_telegram');
+    const { userBot } = require('./_telegram');
     const db = getDb();
 
     const { data: expiredOrders } = await db
@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
         .eq('order_id', order.order_id);
 
       try {
-        await sendPlainMessage(
+        await userBot.sendPlainMessage(
           order.telegram_id,
           '\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0435 \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.'
         );

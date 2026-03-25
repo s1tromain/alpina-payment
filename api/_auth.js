@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 
 function validateInitData(initData) {
-  if (!initData || !process.env.BOT_TOKEN) return null;
+  if (!initData || !process.env.USER_BOT_TOKEN) return null;
 
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
@@ -14,7 +14,7 @@ function validateInitData(initData) {
 
   const secretKey = crypto
     .createHmac('sha256', 'WebAppData')
-    .update(process.env.BOT_TOKEN)
+    .update(process.env.USER_BOT_TOKEN)
     .digest();
 
   const computedHash = crypto

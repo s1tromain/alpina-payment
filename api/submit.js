@@ -1,6 +1,6 @@
 const Busboy = require('busboy');
 const { getRedis } = require('./_redis');
-const { esc, sendPhotoBuffer, sendMessage, sendPlainMessage } = require('./_telegram');
+const { esc, modBot, userBot } = require('./_telegram');
 const { checkAntiSpam, recordSubmission } = require('./_ratelimit');
 const { validateInitData } = require('./_auth');
 
@@ -129,7 +129,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ ok: false, error: 'POST only' });
   }
 
-  if (!process.env.BOT_TOKEN || !CHANNEL_ID) {
+  if (!process.env.MOD_BOT_TOKEN || !CHANNEL_ID) {
     return res.status(500).json({ ok: false, error: 'Server misconfigured' });
   }
 
@@ -207,7 +207,7 @@ module.exports = async (req, res) => {
     const buttons = buildButtons(orderId);
     const safeFilename = sanitizeFilename(fileInfo.filename);
 
-    const channelResult = await sendPhotoBuffer(
+    const channelResult = await modBot.sendPhotoBuffer(
       CHANNEL_ID, fileBuffer, safeFilename, fileInfo.mimeType, caption, buttons
     );
 
@@ -215,7 +215,7 @@ module.exports = async (req, res) => {
     if (channelResult.ok && channelResult.result) {
       channelMessageId = channelResult.result.message_id;
     } else {
-      const textResult = await sendMessage(CHANNEL_ID, caption, buttons);
+      const textResult = await modBot.sendMessage(CHANNEL_ID, caption, buttons);
       if (textResult.ok && textResult.result) {
         channelMessageId = textResult.result.message_id;
       }
@@ -235,7 +235,7 @@ module.exports = async (req, res) => {
       try {
         var displayNum = order.seqId ? '#' + order.seqId : order.orderId;
         var userMsg = '\uD83D\uDCCB \u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0430.\n\u041D\u043E\u043C\u0435\u0440: ' + displayNum + '\n\u041E\u043F\u043B\u0430\u0442\u0430: ' + order.payAmount + ' RUB\n\u041F\u043E\u043B\u0443\u0447\u0438\u0442\u0435: ' + order.receiveAmount + ' USDT\n\u0421\u0442\u0430\u0442\u0443\u0441: \u043E\u0436\u0438\u0434\u0430\u0435\u0442 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438';
-        await sendPlainMessage(order.telegramId, userMsg);
+        await userBot.sendPlainMessage(order.telegramId, userMsg);
       } catch (_) {}
     }
 
