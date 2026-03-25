@@ -170,7 +170,7 @@
       try {
         var data = JSON.parse(xhr.responseText);
         if (!data.ok) {
-          showAlert(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438');
+          showAlert(getErrorMessage(data));
           nextBtn.disabled = false;
           nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
           return;
@@ -328,7 +328,7 @@
       try {
         var data = JSON.parse(xhr.responseText);
         if (!data.ok) {
-          showAlert(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438');
+          showAlert(getErrorMessage(data));
           submitBtn.disabled = false;
           submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
           return;
@@ -382,6 +382,22 @@
   });
 
   /* ========== Helpers ========== */
+
+  var reasonMessages = {
+    cooldown_active: 'Подождите немного перед следующей заявкой',
+    rate_10m: 'Слишком много заявок, попробуйте позже',
+    rate_24h: 'Слишком много заявок за сутки',
+    duplicate: 'Похожая заявка уже была отправлена',
+    too_fast: 'Форма отправлена слишком быстро',
+    validation: 'Проверьте введённые данные'
+  };
+
+  function getErrorMessage(data) {
+    if (data.reason && reasonMessages[data.reason]) {
+      return reasonMessages[data.reason];
+    }
+    return data.error || 'Ошибка сервера';
+  }
 
   function showAlert(msg) {
     alert(msg);

@@ -1,4 +1,4 @@
-const { editMessageCaption, answerCallbackQuery, sendPlainMessage, esc } = require('./_telegram');
+const { editMessageCaption, editMessageText, answerCallbackQuery, sendPlainMessage, esc } = require('./_telegram');
 const { getRedis } = require('./_redis');
 
 const MAX_BODY_SIZE = 64 * 1024;
@@ -137,6 +137,7 @@ async function handleCallback(cb, res) {
 
   const chatId = cb.message.chat.id;
   const messageId = cb.message.message_id;
+  const isPhoto = !!(cb.message.photo);
   const existingCaption = cb.message.caption || cb.message.text || '';
 
   let statusLine;
@@ -148,7 +149,17 @@ async function handleCallback(cb, res) {
 
   const newCaption = existingCaption.replace(/\u23F3[^\n]*/s, statusLine);
 
-  await editMessageCaption(chatId, messageId, newCaption, { inline_keyboard: [] });
+  const emptyMarkup = { inline_keyboard: [] };
+
+  try {
+    if (isPhoto) {
+      await editMessageCaption(chatId, messageId, newCaption, emptyMarkup);
+    } else {
+      await editMessageText(chatId, messageId, newCaption, emptyMarkup);
+    }
+  } catch (editErr) {
+    console.error('Edit message failed:', editErr.message);
+  }
 
   const alertText = action === 'approve'
     ? '\u0417\u0430\u044F\u0432\u043A\u0430 ' + orderId + ' \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0430'

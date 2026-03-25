@@ -47,7 +47,7 @@ async function sendPhotoBuffer(chatId, buffer, filename, mimeType, caption, repl
 }
 
 async function editMessageCaption(chatId, messageId, caption, replyMarkup) {
-  const body = { chat_id: chatId, message_id: messageId, parse_mode: 'MarkdownV2' };
+  const body = { chat_id: chatId, message_id: messageId };
   if (caption !== undefined) body.caption = caption;
   if (replyMarkup) body.reply_markup = replyMarkup;
   return callJson('editMessageCaption', body);

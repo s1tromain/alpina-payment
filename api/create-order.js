@@ -79,7 +79,7 @@ module.exports = async (req, res) => {
     if (r) {
       const cd = await r.get(`order_cd:${ip}`);
       if (cd) {
-        return res.status(429).json({ ok: false, error: '\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043F\u0435\u0440\u0435\u0434 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435\u043C \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u0438' });
+        return res.status(429).json({ ok: false, reason: 'cooldown_active', error: '\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043F\u0435\u0440\u0435\u0434 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435\u043C \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u0438' });
       }
       await r.set(`order_cd:${ip}`, '1', { ex: 30 });
     }

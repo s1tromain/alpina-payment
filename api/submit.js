@@ -149,7 +149,8 @@ module.exports = async (req, res) => {
     });
 
     if (!spam.allowed) {
-      return res.status(429).json({ ok: false, error: spam.error });
+      const spamStatus = spam.reason === 'duplicate' ? 400 : 429;
+      return res.status(spamStatus).json({ ok: false, reason: spam.reason, error: spam.error });
     }
     if (spam.suspicious && spam.reason) {
       spamFlag = spam.reason;
