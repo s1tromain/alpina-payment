@@ -24,6 +24,13 @@ async function fetchRapiraRate() {
     baseRate = parseFloat(data.last);
   } else if (data.result && data.result.price) {
     baseRate = parseFloat(data.result.price);
+  } else if (Array.isArray(data.data)) {
+    const pair = data.data.find(
+      item => item && item.symbol === 'USDT/RUB'
+    );
+    if (pair) {
+      baseRate = parseFloat(pair.askPrice || pair.close || pair.bidPrice);
+    }
   } else if (data.data && typeof data.data === 'object' && data.data.price) {
     baseRate = parseFloat(data.data.price);
   } else if (Array.isArray(data) && data[0] && data[0].price) {
