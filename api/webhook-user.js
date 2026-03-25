@@ -1,4 +1,4 @@
-const { userBot } = require('./_telegram');
+const { userBot, modBot } = require('./_telegram');
 const { getRedis } = require('./_redis');
 
 const MAX_BODY_SIZE = 64 * 1024;
@@ -8,7 +8,8 @@ const STATUS_NAMES = {
   pending: '\u043E\u0436\u0438\u0434\u0430\u0435\u0442',
   approved: '\u043E\u0434\u043E\u0431\u0440\u0435\u043D\u0430',
   rejected: '\u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430',
-  expired: '\u0438\u0441\u0442\u0435\u043A\u043B\u0430'
+  expired: '\u0438\u0441\u0442\u0435\u043A\u043B\u0430',
+  cancelled: '\u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430'
 };
 
 const STATUS_EMOJI = {
@@ -16,11 +17,13 @@ const STATUS_EMOJI = {
   pending: '\u23F3',
   approved: '\u2705',
   rejected: '\u274C',
-  expired: '\uD83D\uDD5B'
+  expired: '\uD83D\uDD5B',
+  cancelled: '\uD83D\uDEAB'
 };
 
 const FILTER_LABELS = {
   all: '\u0412\u0441\u0435',
+  active: '\u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0435',
   pending: '\u041E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435',
   approved: '\u041E\u0434\u043E\u0431\u0440\u0435\u043D\u043D\u044B\u0435',
   rejected: '\u041E\u0442\u043A\u043B\u043E\u043D\u0451\u043D\u043D\u044B\u0435',
@@ -78,7 +81,7 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
 
   if (!orderIds || orderIds.length === 0) {
     const text = '\u0423 \u0432\u0430\u0441 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442 \u0437\u0430\u044F\u0432\u043E\u043A.';
-    const buttons = buildFilterButtons(filter);
+    const buttons = buildOrderButtons(filter, []);
     if (editMessageId) {
       await userBot.editMessageText(chatId, editMessageId, text, buttons);
     } else {
@@ -88,6 +91,7 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
   }
 
   const orders = [];
+  const cancelable = [];
   for (const oid of orderIds) {
     const raw = await r.get('order:' + oid);
     if (!raw) continue;
@@ -96,8 +100,15 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
       order.status = 'expired';
       r.set('order:' + oid, JSON.stringify(order), { ex: 86400 }).catch(function() {});
     }
-    if (filter !== 'all' && order.status !== filter) continue;
+    if (filter === 'active') {
+      if (order.status !== 'created' && order.status !== 'pending') continue;
+    } else if (filter !== 'all' && order.status !== filter) {
+      continue;
+    }
     orders.push(order);
+    if (order.status === 'created' || order.status === 'pending') {
+      cancelable.push(order);
+    }
     if (orders.length >= 20) break;
   }
 
@@ -125,7 +136,7 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
     text = lines.join('\n');
   }
 
-  var buttons = buildFilterButtons(filter);
+  var buttons = buildOrderButtons(filter, cancelable);
 
   if (editMessageId) {
     await userBot.editMessageText(chatId, editMessageId, text, buttons);
@@ -134,13 +145,32 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
   }
 }
 
-function buildFilterButtons(activeFilter) {
-  var filters = ['all', 'pending', 'approved', 'rejected', 'expired'];
-  var row = filters.map(function (f) {
+function buildOrderButtons(activeFilter, cancelableOrders) {
+  var keyboard = [];
+
+  for (var i = 0; i < cancelableOrders.length; i++) {
+    var o = cancelableOrders[i];
+    var num = o.seqId ? '#' + o.seqId : o.orderId;
+    keyboard.push([{ text: '\uD83D\uDEAB \u041E\u0442\u043C\u0435\u043D\u0438\u0442\u044C ' + num, callback_data: 'cancel:' + o.orderId }]);
+  }
+
+  var filters1 = ['all', 'active', 'pending'];
+  var filters2 = ['approved', 'rejected', 'expired'];
+
+  var row1 = filters1.map(function (f) {
     var label = (f === activeFilter ? '\u2022 ' : '') + FILTER_LABELS[f];
     return { text: label, callback_data: 'filter:' + f };
   });
-  return { inline_keyboard: [row] };
+
+  var row2 = filters2.map(function (f) {
+    var label = (f === activeFilter ? '\u2022 ' : '') + FILTER_LABELS[f];
+    return { text: label, callback_data: 'filter:' + f };
+  });
+
+  keyboard.push(row1);
+  keyboard.push(row2);
+
+  return { inline_keyboard: keyboard };
 }
 
 async function handleMessage(msg, res) {
@@ -179,7 +209,7 @@ async function handleCallback(cb, res) {
 
   if (data.startsWith('filter:')) {
     const filter = data.substring(7);
-    if (!['all', 'pending', 'approved', 'rejected', 'expired'].includes(filter)) {
+    if (!['all', 'active', 'pending', 'approved', 'rejected', 'expired'].includes(filter)) {
       await userBot.answerCallbackQuery(cb.id);
       return res.status(200).json({ ok: true });
     }
@@ -188,7 +218,94 @@ async function handleCallback(cb, res) {
     return res.status(200).json({ ok: true });
   }
 
+  if (data.startsWith('cancel:')) {
+    const orderId = data.substring(7);
+    if (!orderId) {
+      await userBot.answerCallbackQuery(cb.id);
+      return res.status(200).json({ ok: true });
+    }
+    await handleCancelOrder(cb, orderId, res);
+    return;
+  }
+
   await userBot.answerCallbackQuery(cb.id);
+  return res.status(200).json({ ok: true });
+}
+
+function buildCancelCaption(order) {
+  var displayId = order.seqId ? '#' + order.seqId : order.orderId;
+  var userLine = '';
+  if (order.telegramUsername) {
+    userLine = '@' + order.telegramUsername;
+  } else if (order.telegramFirstName) {
+    userLine = order.telegramFirstName;
+  } else if (order.telegramId) {
+    userLine = 'ID: ' + order.telegramId;
+  }
+  var lines = [
+    '\u274C \u0417\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C',
+    '',
+    '\uD83C\uDD94 \u041D\u043E\u043C\u0435\u0440: ' + displayId
+  ];
+  if (userLine) {
+    lines.push('\uD83D\uDC64 \u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C: ' + userLine);
+  }
+  lines.push(
+    '\uD83D\uDCB3 \u041E\u043F\u043B\u0430\u0442\u0430: ' + order.payAmount + ' ' + order.payCurrency,
+    '\uD83D\uDCB0 \u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435: ' + order.receiveAmount + ' ' + order.receiveCurrency
+  );
+  return lines.join('\n');
+}
+
+async function handleCancelOrder(cb, orderId, res) {
+  var chatId = cb.message.chat.id;
+  var userId = String(cb.from.id);
+  var r = getRedis();
+
+  if (!r) {
+    await userBot.answerCallbackQuery(cb.id, '\u0421\u0435\u0440\u0432\u0438\u0441 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D');
+    return res.status(200).json({ ok: true });
+  }
+
+  var raw = await r.get('order:' + orderId);
+  if (!raw) {
+    await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430');
+    return res.status(200).json({ ok: true });
+  }
+
+  var order = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+  if (order.telegramId !== userId) {
+    await userBot.answerCallbackQuery(cb.id, '\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430');
+    return res.status(200).json({ ok: true });
+  }
+
+  if (order.status !== 'created' && order.status !== 'pending') {
+    await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u0430');
+    return res.status(200).json({ ok: true });
+  }
+
+  order.status = 'cancelled';
+  order.cancelledAt = new Date().toISOString();
+  await r.set('order:' + orderId, JSON.stringify(order), { ex: 86400 });
+
+  if (order.channelMessageId && process.env.CHANNEL_ID) {
+    try {
+      var cancelCaption = buildCancelCaption(order);
+      var emptyMarkup = { inline_keyboard: [] };
+      try {
+        await modBot.editMessageCaption(process.env.CHANNEL_ID, order.channelMessageId, cancelCaption, emptyMarkup);
+      } catch (_) {
+        try {
+          await modBot.editMessageText(process.env.CHANNEL_ID, order.channelMessageId, cancelCaption, emptyMarkup);
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  var displayNum = order.seqId ? '#' + order.seqId : orderId;
+  await userBot.sendPlainMessage(chatId, '\uD83D\uDEAB \u0417\u0430\u044F\u0432\u043A\u0430 ' + displayNum + ' \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430.');
+  await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430');
   return res.status(200).json({ ok: true });
 }
 

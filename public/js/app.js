@@ -293,12 +293,6 @@
     reader.readAsDataURL(file);
   }
 
-  uploadZone.addEventListener('click', function (e) {
-    if (e.target === fileInput) return;
-    e.preventDefault();
-    fileInput.click();
-  });
-
   fileInput.addEventListener('change', function () {
     handleFile(fileInput.files[0]);
     uploadZone.classList.remove('error');

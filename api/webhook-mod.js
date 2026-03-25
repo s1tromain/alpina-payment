@@ -118,6 +118,11 @@ async function handleCallback(cb, res) {
 
   const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
+  if (order.status === 'cancelled') {
+    await modBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C');
+    return res.status(200).json({ ok: true });
+  }
+
   if (order.status === 'expired' || (order.status === 'created' && order.expiresAt && new Date(order.expiresAt) < new Date())) {
     if (order.status !== 'expired') {
       order.status = 'expired';
