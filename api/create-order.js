@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fetch = require('node-fetch');
 const { getRedis } = require('./_redis');
 const { validateInitData } = require('./_auth');
+const { createCardPayin } = require('./_alpina');
 
 const ORDER_TTL = 86400;
 const ORDER_LIFETIME = 1800;
@@ -144,6 +145,28 @@ module.exports = async (req, res) => {
       seqId = await r.incr('order:seq');
     }
 
+    // Fetch dynamic requisites from Alpina API
+    let alpina;
+    try {
+      alpina = await createCardPayin({
+        amountRub: rubAmount,
+        merchantTransactionId: `order_${seqId}`,
+        clientId: telegramId
+      });
+    } catch (alpErr) {
+      console.error('Alpina API error:', alpErr.message);
+      return res.status(503).json({ ok: false, error: 'Реквизиты временно недоступны, попробуйте позже' });
+    }
+
+    // Use Alpina expiration if it's sooner than default
+    let finalExpiresAt = expiresAt;
+    if (alpina.expiresAt) {
+      const alpinaExp = new Date(alpina.expiresAt);
+      if (!isNaN(alpinaExp.getTime()) && alpinaExp < expiresAt) {
+        finalExpiresAt = alpinaExp;
+      }
+    }
+
     const orderData = {
       orderId,
       seqId,
@@ -158,10 +181,15 @@ module.exports = async (req, res) => {
       finalRate,
       markupPercent,
       payoutDetails: payoutDetails.trim().substring(0, 500),
+      alpinaTransactionId: alpina.alpinaTransactionId,
+      alpinaCardNumber: alpina.cardNumber,
+      alpinaBankName: alpina.bankName,
+      alpinaOwnerName: alpina.ownerName,
+      alpinaExpiresAt: alpina.expiresAt || null,
       status: 'created',
       clientIp: ip,
       createdAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: finalExpiresAt.toISOString()
     };
 
     if (r) {
@@ -181,8 +209,9 @@ module.exports = async (req, res) => {
       payAmount: rubAmount,
       payCurrency: 'RUB',
       finalRate,
-      paymentRequisites: process.env.PAYMENT_REQUISITES || '',
-      expiresAt: expiresAt.toISOString()
+      cardNumber: alpina.cardNumber,
+      bankName: alpina.bankName,
+      expiresAt: finalExpiresAt.toISOString()
     });
   } catch (err) {
     console.error('Create order error:', err.message);

@@ -33,7 +33,8 @@
   var payReceiveAmountEl = document.getElementById('payReceiveAmount');
   var payRateEl = document.getElementById('payRate');
   var payAmountRubEl = document.getElementById('payAmountRub');
-  var payRequisitesEl = document.getElementById('payRequisites');
+  var payCardNumberEl = document.getElementById('payCardNumber');
+  var payBankNameEl = document.getElementById('payBankName');
   var timerBadgeEl = document.getElementById('timerBadge');
   var timerTextEl = document.getElementById('timerText');
 
@@ -199,7 +200,8 @@
         payAmountRubEl.textContent = data.payAmount.toFixed(2) + ' \u20BD';
         payReceiveAmountEl.textContent = data.receiveAmount + ' ' + data.receiveCurrency;
         payRateEl.textContent = data.finalRate.toFixed(2) + ' \u20BD';
-        payRequisitesEl.textContent = data.paymentRequisites || '\u2014';
+        payCardNumberEl.textContent = data.cardNumber || '\u2014';
+        payBankNameEl.textContent = data.bankName || '\u2014';
 
         timerBadgeEl.classList.remove('warning', 'expired');
         startTimer(new Date(data.expiresAt));

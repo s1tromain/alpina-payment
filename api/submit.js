@@ -106,7 +106,17 @@ function buildCaption(order, spamFlag) {
     '\uD83D\uDCB3 *\u041E\u043F\u043B\u0430\u0442\u0430:* ' + esc(String(order.payAmount)) + ' ' + esc(order.payCurrency),
     '\uD83D\uDCB0 *\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435:* ' + esc(String(order.receiveAmount)) + ' ' + esc(order.receiveCurrency),
     '\uD83D\uDCCA *\u041A\u0443\u0440\u0441:* ' + esc(String(order.finalRate)),
-    '\u23F0 *\u0421\u0440\u043E\u043A \u0434\u043E:* ' + esc(formatExpiry(order.expiresAt)),
+    '\u23F0 *\u0421\u0440\u043E\u043A \u0434\u043E:* ' + esc(formatExpiry(order.expiresAt))
+  );
+
+  if (order.alpinaCardNumber) {
+    lines.push('\uD83C\uDFE6 *\u041A\u0430\u0440\u0442\u0430:* ' + esc(order.alpinaCardNumber));
+  }
+  if (order.alpinaBankName) {
+    lines.push('\uD83C\uDFE6 *\u0411\u0430\u043D\u043A:* ' + esc(order.alpinaBankName));
+  }
+
+  lines.push(
     '\uD83D\uDCDD *\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B:* ' + esc(order.payoutDetails),
     '',
     '\u23F3 _\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438_'
