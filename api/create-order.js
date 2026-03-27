@@ -68,8 +68,8 @@ module.exports = async (req, res) => {
 
     const rubAmount = parseFloat(amountRub);
 
-    if (rubAmount < 100) {
-      return res.status(400).json({ ok: false, error: '\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u043C\u043C\u0430: 100 RUB' });
+    if (rubAmount < 1000) {
+      return res.status(400).json({ ok: false, error: '\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u043C\u043C\u0430 \u043F\u043E\u043A\u0443\u043F\u043A\u0438 \u2014 1000 RUB' });
     }
 
     if (rubAmount > 10000000) {
@@ -120,7 +120,7 @@ module.exports = async (req, res) => {
             await r.set('order:' + oid, JSON.stringify(existing), { ex: 86400 });
             continue;
           }
-          if (existing.status === 'pending') {
+          if (existing.status === 'pending' || existing.status === 'approved') {
             return res.status(409).json({ ok: false, reason: 'active_order', error: '\u0423 \u0432\u0430\u0441 \u0443\u0436\u0435 \u0435\u0441\u0442\u044C \u0430\u043A\u0442\u0438\u0432\u043D\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430. \u0414\u043E\u0436\u0434\u0438\u0442\u0435\u0441\u044C \u0435\u0451 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u0447\u0435\u043D\u0438\u044F \u0441\u0440\u043E\u043A\u0430.' });
           }
         }

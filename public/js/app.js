@@ -155,9 +155,9 @@
     if (!amount || amount <= 0) {
       amountRubInput.closest('.field').classList.add('error');
       valid = false;
-    } else if (amount < 100) {
+    } else if (amount < 1000) {
       amountRubInput.closest('.field').classList.add('error');
-      showAlert('\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u043C\u043C\u0430: 100 RUB');
+      showAlert('\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u043C\u043C\u0430 \u043F\u043E\u043A\u0443\u043F\u043A\u0438 \u2014 1000 RUB');
       return;
     }
 

@@ -7,6 +7,7 @@ const STATUS_NAMES = {
   created: '\u0441\u043E\u0437\u0434\u0430\u043D\u0430',
   pending: '\u043E\u0436\u0438\u0434\u0430\u0435\u0442',
   approved: '\u043E\u0434\u043E\u0431\u0440\u0435\u043D\u0430',
+  completed: '\u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430',
   rejected: '\u043E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430',
   expired: '\u0438\u0441\u0442\u0435\u043A\u043B\u0430',
   cancelled: '\u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430'
@@ -16,6 +17,7 @@ const STATUS_EMOJI = {
   created: '\uD83D\uDCDD',
   pending: '\u23F3',
   approved: '\u2705',
+  completed: '\uD83D\uDCB8',
   rejected: '\u274C',
   expired: '\uD83D\uDD5B',
   cancelled: '\uD83D\uDEAB'
@@ -26,6 +28,7 @@ const FILTER_LABELS = {
   active: '\u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0435',
   pending: '\u041E\u0436\u0438\u0434\u0430\u044E\u0449\u0438\u0435',
   approved: '\u041E\u0434\u043E\u0431\u0440\u0435\u043D\u043D\u044B\u0435',
+  completed: '\u0417\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435',
   rejected: '\u041E\u0442\u043A\u043B\u043E\u043D\u0451\u043D\u043D\u044B\u0435',
   expired: '\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043D\u044B\u0435'
 };
@@ -101,7 +104,7 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
       r.set('order:' + oid, JSON.stringify(order), { ex: 86400 }).catch(function() {});
     }
     if (filter === 'active') {
-      if (order.status !== 'created' && order.status !== 'pending') continue;
+      if (order.status !== 'created' && order.status !== 'pending' && order.status !== 'approved') continue;
     } else if (filter !== 'all' && order.status !== filter) {
       continue;
     }
@@ -155,7 +158,7 @@ function buildOrderButtons(activeFilter, cancelableOrders) {
   }
 
   var filters1 = ['all', 'active', 'pending'];
-  var filters2 = ['approved', 'rejected', 'expired'];
+  var filters2 = ['approved', 'completed', 'rejected', 'expired'];
 
   var row1 = filters1.map(function (f) {
     var label = (f === activeFilter ? '\u2022 ' : '') + FILTER_LABELS[f];
@@ -209,7 +212,7 @@ async function handleCallback(cb, res) {
 
   if (data.startsWith('filter:')) {
     const filter = data.substring(7);
-    if (!['all', 'active', 'pending', 'approved', 'rejected', 'expired'].includes(filter)) {
+    if (!['all', 'active', 'pending', 'approved', 'completed', 'rejected', 'expired'].includes(filter)) {
       await userBot.answerCallbackQuery(cb.id);
       return res.status(200).json({ ok: true });
     }

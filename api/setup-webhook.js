@@ -59,6 +59,11 @@ module.exports = async (req, res) => {
       ]
     });
 
+    // Reset MOD bot menu button to default (remove any web_app button)
+    await botApi(process.env.MOD_BOT_TOKEN, 'setChatMenuButton', {
+      menu_button: { type: 'default' }
+    });
+
     const miniAppUrl = process.env.MINI_APP_URL || process.env.SITE_URL;
     if (miniAppUrl) {
       await botApi(process.env.USER_BOT_TOKEN, 'setChatMenuButton', {
