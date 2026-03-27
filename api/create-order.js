@@ -28,7 +28,9 @@ async function getCurrentRate() {
       const cached = await r.get('rate:usdt_rub');
       if (cached) {
         const data = typeof cached === 'string' ? JSON.parse(cached) : cached;
-        return { baseRate: data.baseRate, finalRate: data.finalRate, markupPercent };
+        if (data.baseRate && data.finalRate) {
+          return { baseRate: data.baseRate, finalRate: data.finalRate, markupPercent };
+        }
       }
     } catch (_) {}
   }
@@ -42,16 +44,39 @@ async function getCurrentRate() {
   const data = await resp.json();
   let baseRate = null;
 
-  if (typeof data === 'number') baseRate = data;
-  else if (data.price) baseRate = parseFloat(data.price);
-  else if (data.rate) baseRate = parseFloat(data.rate);
-  else if (data.last) baseRate = parseFloat(data.last);
-  else if (data.result && data.result.price) baseRate = parseFloat(data.result.price);
-  else if (data.data && typeof data.data === 'object' && data.data.price) baseRate = parseFloat(data.data.price);
+  if (typeof data === 'number') {
+    baseRate = data;
+  } else if (data.price) {
+    baseRate = parseFloat(data.price);
+  } else if (data.rate) {
+    baseRate = parseFloat(data.rate);
+  } else if (data.last) {
+    baseRate = parseFloat(data.last);
+  } else if (data.result && data.result.price) {
+    baseRate = parseFloat(data.result.price);
+  } else if (Array.isArray(data.data)) {
+    const pair = data.data.find(
+      item => item && item.symbol === 'USDT/RUB'
+    );
+    if (pair) {
+      baseRate = parseFloat(pair.askPrice || pair.close || pair.bidPrice);
+    }
+  } else if (data.data && typeof data.data === 'object' && data.data.price) {
+    baseRate = parseFloat(data.data.price);
+  } else if (Array.isArray(data) && data[0] && data[0].price) {
+    baseRate = parseFloat(data[0].price);
+  }
 
   if (!baseRate || isNaN(baseRate) || baseRate <= 0) throw new Error('Cannot parse rate');
 
   const finalRate = Math.round(baseRate * (1 + markupPercent / 100) * 100) / 100;
+
+  if (r) {
+    try {
+      await r.set('rate:usdt_rub', JSON.stringify({ baseRate, finalRate, updatedAt: new Date().toISOString() }), { ex: 25 });
+    } catch (_) {}
+  }
+
   return { baseRate, finalRate, markupPercent };
 }
 
