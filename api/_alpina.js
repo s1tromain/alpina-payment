@@ -14,24 +14,29 @@ async function createCardPayin({ amountRub, merchantTransactionId, clientId }) {
 
   const url = `${baseUrl}/api/v1/transactions/card`;
 
+  const body = {
+    amount: String(Math.floor(amountRub)),
+    currency: 'RUB',
+    merchant_transaction_id: String(merchantTransactionId)
+  };
+  if (clientId) {
+    body.client_id = String(clientId);
+  }
+
   const resp = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      amount: amountRub,
-      currency: 'RUB',
-      merchant_transaction_id: merchantTransactionId,
-      client_id: clientId
-    }),
+    body: JSON.stringify(body),
     timeout: 15000
   });
 
   if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`Alpina API error ${resp.status}: ${text}`);
+    const status = resp.status;
+    console.error('Alpina API HTTP error:', status);
+    throw new Error(`Alpina API error ${status}`);
   }
 
   let data;
@@ -41,25 +46,28 @@ async function createCardPayin({ amountRub, merchantTransactionId, clientId }) {
     throw new Error('Alpina API returned invalid JSON');
   }
 
-  // Handle nested response formats (data may be wrapped)
-  const payload = data.data || data.result || data;
-
-  const alpinaTransactionId = payload.transaction_id || payload.id || null;
-  const cardNumber = payload.card_number || payload.card || payload.number || null;
-  const bankName = payload.bank_name || payload.bank || null;
-  const ownerName = payload.owner_name || payload.owner || payload.cardholder || null;
-  const expiresAt = payload.expires_at || payload.expired_at || payload.expiration || null;
+  const cardNumber = data.card_number || null;
 
   if (!cardNumber) {
     throw new Error('Alpina API response missing card number');
   }
 
   return {
-    alpinaTransactionId,
+    alpinaTransactionId: data.id || null,
+    merchantTransactionId: data.merchant_transaction_id || null,
+    expiresAt: data.expires_at || null,
+    amountRub: data.amount || null,
+    currency: data.currency || null,
+    currencyRate: data.currency_rate || null,
+    amountInUsd: data.amount_in_usd || null,
+    rate: data.rate || null,
+    commission: data.commission || null,
     cardNumber,
-    bankName,
-    ownerName,
-    expiresAt,
+    ownerName: data.owner_name || null,
+    bankName: data.bank_name || null,
+    countryName: data.country_name || null,
+    paymentCurrency: data.payment_currency || null,
+    paymentLink: data.payment_link || null,
     raw: data
   };
 }
