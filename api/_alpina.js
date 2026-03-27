@@ -35,7 +35,12 @@ async function createCardPayin({ amountRub, merchantTransactionId, clientId }) {
 
   if (!resp.ok) {
     const status = resp.status;
-    console.error('Alpina API HTTP error:', status);
+    let bodyText = '';
+    try {
+      bodyText = await resp.text();
+      if (bodyText.length > 1000) bodyText = bodyText.slice(0, 1000) + '…';
+    } catch (_) {}
+    console.error('Alpina API error:', status, bodyText);
     throw new Error(`Alpina API error ${status}`);
   }
 
