@@ -33,22 +33,22 @@ async function createCardPayin({ amountRub, merchantTransactionId, clientId }) {
     timeout: 15000
   });
 
+  const text = await resp.text();
+  const safeBody = JSON.stringify(body);
+
+  console.error('--- ALPINA DEBUG START ---');
+  console.error('Request body:', safeBody);
+  console.error('Response status:', resp.status);
+  console.error('Response body:', text);
+  console.error('--- ALPINA DEBUG END ---');
+
   if (!resp.ok) {
-    const status = resp.status;
-    let bodyText = '';
-    try {
-      bodyText = await resp.text();
-      if (bodyText.length > 1000) bodyText = bodyText.slice(0, 1000) + '…';
-    } catch (_) {}
-    const safeBody = JSON.stringify(body);
-    console.error('Alpina API error:', status, bodyText);
-    console.error('Alpina request body:', safeBody);
-    throw new Error(`Alpina API error ${status}`);
+    throw new Error(`Alpina API error ${resp.status}`);
   }
 
   let data;
   try {
-    data = await resp.json();
+    data = JSON.parse(text);
   } catch (e) {
     throw new Error('Alpina API returned invalid JSON');
   }
