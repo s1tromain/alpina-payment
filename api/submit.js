@@ -3,6 +3,7 @@ const { getRedis } = require('./_redis');
 const { esc, modBot, userBot } = require('./_telegram');
 const { checkAntiSpam, recordSubmission } = require('./_ratelimit');
 const { validateInitData } = require('./_auth');
+const { releaseCardByOrder } = require('./_requisites');
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png'];
@@ -109,11 +110,11 @@ function buildCaption(order, spamFlag) {
     '\u23F0 *\u0421\u0440\u043E\u043A \u0434\u043E:* ' + esc(formatExpiry(order.expiresAt))
   );
 
-  if (order.alpinaCardNumber) {
-    lines.push('\uD83C\uDFE6 *\u041A\u0430\u0440\u0442\u0430:* ' + esc(order.alpinaCardNumber));
+  if (order.assignedCardNumber) {
+    lines.push('\uD83C\uDFE6 *\u041A\u0430\u0440\u0442\u0430:* ' + esc(order.assignedCardNumber));
   }
-  if (order.alpinaBankName) {
-    lines.push('\uD83C\uDFE6 *\u0411\u0430\u043D\u043A:* ' + esc(order.alpinaBankName));
+  if (order.assignedBankName) {
+    lines.push('\uD83C\uDFE6 *\u0411\u0430\u043D\u043A:* ' + esc(order.assignedBankName));
   }
 
   lines.push(
@@ -194,6 +195,7 @@ module.exports = async (req, res) => {
     if (new Date(order.expiresAt) < new Date()) {
       order.status = 'expired';
       await r.set(`order:${orderId}`, JSON.stringify(order), { ex: 86400 });
+      await releaseCardByOrder(order);
       return res.status(400).json({ ok: false, error: '\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.' });
     }
 

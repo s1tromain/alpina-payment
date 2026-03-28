@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const fetch = require('node-fetch');
 const { getRedis } = require('./_redis');
 const { validateInitData } = require('./_auth');
-const { createCardPayin } = require('./_alpina');
+const { assignCard, releaseCard } = require('./_requisites');
 
 const ORDER_TTL = 86400;
 const ORDER_LIFETIME = 1800;
@@ -138,12 +138,14 @@ module.exports = async (req, res) => {
           if (existing.status === 'created' && existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
             existing.status = 'expired';
             await r.set('order:' + oid, JSON.stringify(existing), { ex: 86400 });
+            await releaseCard(existing.assignedRequisiteId);
             continue;
           }
           if (existing.status === 'created') {
             existing.status = 'cancelled';
             existing.cancelledAt = new Date().toISOString();
             await r.set('order:' + oid, JSON.stringify(existing), { ex: 86400 });
+            await releaseCard(existing.assignedRequisiteId);
             continue;
           }
           if (existing.status === 'pending' || existing.status === 'approved') {
@@ -170,27 +172,13 @@ module.exports = async (req, res) => {
       seqId = await r.incr('order:seq');
     }
 
-    // Fetch dynamic requisites from Alpina API
-    let alpina;
-    try {
-      alpina = await createCardPayin({
-        amountRub: rubAmount,
-        merchantTransactionId: `order_${seqId}`,
-        clientId: telegramId
-      });
-    } catch (alpErr) {
-      console.error('Alpina API error:', alpErr.message);
-      return res.status(503).json({ ok: false, error: 'Реквизиты временно недоступны, попробуйте позже' });
+    // Assign a free active card from internal requisites
+    const cardResult = await assignCard(orderId);
+    if (!cardResult.ok) {
+      return res.status(503).json({ ok: false, error: 'Свободные реквизиты временно отсутствуют, попробуйте позже' });
     }
 
-    // Use Alpina expiration if it's sooner than default
-    let finalExpiresAt = expiresAt;
-    if (alpina.expiresAt) {
-      const alpinaExp = new Date(alpina.expiresAt);
-      if (!isNaN(alpinaExp.getTime()) && alpinaExp < expiresAt) {
-        finalExpiresAt = alpinaExp;
-      }
-    }
+    const assignedCard = cardResult.requisite;
 
     const orderData = {
       orderId,
@@ -206,24 +194,13 @@ module.exports = async (req, res) => {
       finalRate,
       markupPercent,
       payoutDetails: payoutDetails.trim().substring(0, 500),
-      alpinaTransactionId: alpina.alpinaTransactionId,
-      alpinaMerchantTransactionId: alpina.merchantTransactionId,
-      alpinaCardNumber: alpina.cardNumber,
-      alpinaBankName: alpina.bankName,
-      alpinaOwnerName: alpina.ownerName,
-      alpinaExpiresAt: alpina.expiresAt || null,
-      alpinaAmountRub: alpina.amountRub,
-      alpinaAmountInUsd: alpina.amountInUsd,
-      alpinaCurrencyRate: alpina.currencyRate,
-      alpinaRate: alpina.rate,
-      alpinaCommission: alpina.commission,
-      alpinaCountryName: alpina.countryName,
-      alpinaPaymentCurrency: alpina.paymentCurrency,
-      alpinaPaymentLink: alpina.paymentLink,
+      assignedRequisiteId: assignedCard.id,
+      assignedCardNumber: assignedCard.cardNumber,
+      assignedBankName: assignedCard.bankName,
       status: 'created',
       clientIp: ip,
       createdAt: now.toISOString(),
-      expiresAt: finalExpiresAt.toISOString()
+      expiresAt: expiresAt.toISOString()
     };
 
     if (r) {
@@ -243,9 +220,9 @@ module.exports = async (req, res) => {
       payAmount: rubAmount,
       payCurrency: 'RUB',
       finalRate,
-      cardNumber: alpina.cardNumber,
-      bankName: alpina.bankName,
-      expiresAt: finalExpiresAt.toISOString()
+      cardNumber: assignedCard.cardNumber,
+      bankName: assignedCard.bankName,
+      expiresAt: expiresAt.toISOString()
     });
   } catch (err) {
     console.error('Create order error:', err.message);

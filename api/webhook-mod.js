@@ -1,5 +1,6 @@
 const { modBot, userBot } = require('./_telegram');
 const { getRedis } = require('./_redis');
+const { releaseCardByOrder } = require('./_requisites');
 
 const MAX_BODY_SIZE = 64 * 1024;
 const PROCESSED_TTL = 86400;
@@ -127,6 +128,7 @@ async function handleCallback(cb, res) {
     if (order.status !== 'expired') {
       order.status = 'expired';
       await r.set('order:' + orderId, JSON.stringify(order), { ex: 86400 });
+      await releaseCardByOrder(order);
     }
     await modBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u0430');
     return res.status(200).json({ ok: true });
@@ -191,6 +193,7 @@ async function handleCallback(cb, res) {
     order.completedBy = adminName + ' (' + fromId + ')';
     order.completedAt = new Date().toISOString();
     await r.set('order:' + orderId, JSON.stringify(order), { ex: PROCESSED_TTL });
+    await releaseCardByOrder(order);
 
     const statusLine = '\uD83D\uDCB8 \u0421\u0440\u0435\u0434\u0441\u0442\u0432\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044E\n\uD83D\uDC64 ' + adminName;
     const newCaption = existingCaption.replace(/\u2705[\s\S]*$/, statusLine);
@@ -220,6 +223,7 @@ async function handleCallback(cb, res) {
     order.processedBy = adminName + ' (' + fromId + ')';
     order.processedAt = new Date().toISOString();
     await r.set('order:' + orderId, JSON.stringify(order), { ex: PROCESSED_TTL });
+    await releaseCardByOrder(order);
 
     const statusLine = '\u274C \u041E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430\n\uD83D\uDC64 ' + adminName;
     const newCaption = existingCaption.replace(/(\u23F3|\u2705)[\s\S]*$/, statusLine);

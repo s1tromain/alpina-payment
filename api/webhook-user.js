@@ -1,5 +1,6 @@
 const { userBot, modBot } = require('./_telegram');
 const { getRedis } = require('./_redis');
+const { releaseCardByOrder } = require('./_requisites');
 
 const MAX_BODY_SIZE = 64 * 1024;
 
@@ -102,6 +103,7 @@ async function showUserOrders(chatId, telegramId, filter, editMessageId) {
     if (order.status === 'created' && order.expiresAt && new Date(order.expiresAt) < new Date()) {
       order.status = 'expired';
       r.set('order:' + oid, JSON.stringify(order), { ex: 86400 }).catch(function() {});
+      releaseCardByOrder(order).catch(function() {});
     }
     if (filter === 'active') {
       if (order.status !== 'created' && order.status !== 'pending' && order.status !== 'approved') continue;
@@ -291,6 +293,7 @@ async function handleCancelOrder(cb, orderId, res) {
   order.status = 'cancelled';
   order.cancelledAt = new Date().toISOString();
   await r.set('order:' + orderId, JSON.stringify(order), { ex: 86400 });
+  await releaseCardByOrder(order);
 
   if (order.channelMessageId && process.env.CHANNEL_ID) {
     try {
