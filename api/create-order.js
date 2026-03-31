@@ -3,6 +3,7 @@ const fetch = require('node-fetch');
 const { getRedis } = require('./_redis');
 const { validateInitData } = require('./_auth');
 const { assignCard, releaseCard } = require('./_requisites');
+const { checkDailyLimit } = require('./_stats');
 
 const ORDER_TTL = 86400;
 const ORDER_LIFETIME = 1800;
@@ -20,7 +21,7 @@ function getClientIp(req) {
 }
 
 async function getCurrentRate() {
-  const markupPercent = parseFloat(process.env.MARKUP_PERCENT) || 8;
+  const markupPercent = parseFloat(process.env.MARKUP_PERCENT) || 9;
   const r = getRedis();
 
   if (r) {
@@ -159,6 +160,12 @@ module.exports = async (req, res) => {
 
     if (!finalRate || finalRate <= 0) {
       return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u043A\u0443\u0440\u0441\u0430' });
+    }
+
+    // Check daily limit before creating the order
+    const limitCheck = await checkDailyLimit(rubAmount);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({ ok: false, reason: 'daily_limit', error: '\u0414\u043D\u0435\u0432\u043D\u043E\u0439 \u043B\u0438\u043C\u0438\u0442 \u043F\u043E \u0441\u0443\u043C\u043C\u0435 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u043D. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.' });
     }
 
     const amountUsdt = Math.round((rubAmount / finalRate) * 100) / 100;

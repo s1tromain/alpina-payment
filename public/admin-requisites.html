@@ -184,10 +184,69 @@
     .error-msg { color: var(--err); font-size: .82rem; margin-top: 8px; text-align: center; }
     .info-msg { color: var(--ok); font-size: .82rem; margin-top: 8px; text-align: center; }
 
+    /* Monitoring cards */
+    .monitor-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .monitor-card {
+      background: var(--bg2);
+      border: 1px solid var(--border-t);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+    .monitor-card .mc-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+    .monitor-card .mc-value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--teal);
+    }
+    .monitor-card .mc-sub {
+      font-size: .72rem;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--text2);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: .2s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--teal);
+      border-bottom-color: var(--teal);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
     @media (max-width:600px) {
       .container { padding: 16px 12px 40px; }
       th, td { padding: 8px 6px; font-size: .75rem; }
       .btn-sm { padding: 5px 10px; font-size: .72rem; }
+      .monitor-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -209,31 +268,79 @@
   </div>
 
   <div id="mainPanel" style="display:none">
-    <div class="actions">
-      <button class="btn btn-primary" id="addCardBtn">+ Добавить карту</button>
-      <button class="btn btn-secondary" id="seedBtn">Загрузить тестовые карты</button>
-      <button class="btn btn-secondary" id="refreshBtn">Обновить</button>
+
+    <!-- Monitoring cards -->
+    <div class="monitor-row" id="monitorRow">
+      <div class="monitor-card">
+        <div class="mc-label">Сумма за сегодня</div>
+        <div class="mc-value" id="monTotalRub">0 ₽</div>
+        <div class="mc-sub">Лимит: <span id="monLimitRub">200 000</span> ₽</div>
+      </div>
+      <div class="monitor-card">
+        <div class="mc-label">Осталось</div>
+        <div class="mc-value" id="monRemaining">200 000 ₽</div>
+        <div class="mc-sub" id="monPercent">0%</div>
+      </div>
+      <div class="monitor-card">
+        <div class="mc-label">Заявок обработано</div>
+        <div class="mc-value" id="monOrdersCount">0</div>
+        <div class="mc-sub">одобрено сегодня</div>
+      </div>
     </div>
 
-    <div class="info-msg" id="statusMsg" style="display:none"></div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Номер карты</th>
-            <th>Банк</th>
-            <th>Активна</th>
-            <th>Статус</th>
-            <th>Заказ</th>
-            <th>Действия</th>
-          </tr>
-        </thead>
-        <tbody id="cardsBody">
-          <tr><td colspan="6" class="empty-msg">Загрузка…</td></tr>
-        </tbody>
-      </table>
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="requisites">Реквизиты</button>
+      <button class="tab-btn" data-tab="history">История</button>
     </div>
+
+    <!-- Tab: Requisites -->
+    <div class="tab-content active" id="tabRequisites">
+      <div class="actions">
+        <button class="btn btn-primary" id="addCardBtn">+ Добавить карту</button>
+        <button class="btn btn-secondary" id="seedBtn">Загрузить тестовые карты</button>
+        <button class="btn btn-secondary" id="refreshBtn">Обновить</button>
+      </div>
+
+      <div class="info-msg" id="statusMsg" style="display:none"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Номер карты</th>
+              <th>Банк</th>
+              <th>Активна</th>
+              <th>Статус</th>
+              <th>Заказ</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="cardsBody">
+            <tr><td colspan="6" class="empty-msg">Загрузка…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: History -->
+    <div class="tab-content" id="tabHistory">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Заявок</th>
+              <th>Сумма ₽</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="3" class="empty-msg">Загрузка…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div>
 

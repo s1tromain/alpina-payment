@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const markupPercent = parseFloat(process.env.MARKUP_PERCENT) || 8;
+    const markupPercent = parseFloat(process.env.MARKUP_PERCENT) || 9;
     const r = getRedis();
 
     if (r) {

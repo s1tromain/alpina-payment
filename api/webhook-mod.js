@@ -1,6 +1,7 @@
 const { modBot, userBot } = require('./_telegram');
 const { getRedis } = require('./_redis');
 const { releaseCardByOrder } = require('./_requisites');
+const { recordApproval } = require('./_stats');
 
 const MAX_BODY_SIZE = 64 * 1024;
 const PROCESSED_TTL = 86400;
@@ -160,6 +161,11 @@ async function handleCallback(cb, res) {
     order.processedBy = adminName + ' (' + fromId + ')';
     order.processedAt = new Date().toISOString();
     await r.set('order:' + orderId, JSON.stringify(order), { ex: PROCESSED_TTL });
+
+    // Record daily stats (amount + count) on approve
+    if (order.payAmount) {
+      try { await recordApproval(parseFloat(order.payAmount)); } catch (_) {}
+    }
 
     const statusLine = '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u043E, \u043E\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0430 \u043C\u043E\u043D\u0435\u0442\u044B\n\uD83D\uDC64 ' + adminName;
     const newCaption = existingCaption.replace(/\u23F3[\s\S]*$/, statusLine);

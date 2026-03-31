@@ -7,6 +7,7 @@ const {
   deleteRequisite,
   seedTestCards
 } = require('./_requisites');
+const { getDailyStats, getStatsHistory, DAILY_LIMIT_RUB } = require('./_stats');
 
 /**
  * Simple admin auth: checks MODERATOR_PASSWORD header.
@@ -42,6 +43,26 @@ module.exports = async (req, res) => {
       if (action === 'seed') {
         const result = await seedTestCards();
         return res.status(200).json({ ok: true, ...result });
+      }
+
+      if (action === 'stats') {
+        const today = await getDailyStats();
+        return res.status(200).json({
+          ok: true,
+          today: {
+            date: today.date,
+            totalApprovedRub: today.totalApprovedRub || 0,
+            approvedOrdersCount: today.approvedOrdersCount || 0,
+            dailyLimitRub: DAILY_LIMIT_RUB
+          }
+        });
+      }
+
+      if (action === 'history') {
+        const limit = parseInt(query.get('limit')) || 30;
+        const safedLimit = Math.min(Math.max(limit, 1), 90);
+        const history = await getStatsHistory(safedLimit);
+        return res.status(200).json({ ok: true, history: history });
       }
 
       const id = query.get('id');
