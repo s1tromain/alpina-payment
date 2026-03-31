@@ -25,7 +25,7 @@ function validateInitData(initData) {
   if (computedHash !== hash) return null;
 
   const authDate = parseInt(params.get('auth_date'), 10);
-  if (!authDate || (Date.now() / 1000 - authDate) > 86400) return null;
+  if (!authDate || (Date.now() / 1000 - authDate) > 300) return null;
 
   const userStr = params.get('user');
   if (!userStr) return null;

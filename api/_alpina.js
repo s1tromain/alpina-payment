@@ -34,13 +34,6 @@ async function createCardPayin({ amountRub, merchantTransactionId, clientId }) {
   });
 
   const text = await resp.text();
-  const safeBody = JSON.stringify(body);
-
-  console.error('--- ALPINA DEBUG START ---');
-  console.error('Request body:', safeBody);
-  console.error('Response status:', resp.status);
-  console.error('Response body:', text);
-  console.error('--- ALPINA DEBUG END ---');
 
   if (!resp.ok) {
     throw new Error(`Alpina API error ${resp.status}`);
@@ -74,8 +67,7 @@ async function createCardPayin({ amountRub, merchantTransactionId, clientId }) {
     bankName: data.bank_name || null,
     countryName: data.country_name || null,
     paymentCurrency: data.payment_currency || null,
-    paymentLink: data.payment_link || null,
-    raw: data
+    paymentLink: data.payment_link || null
   };
 }
 

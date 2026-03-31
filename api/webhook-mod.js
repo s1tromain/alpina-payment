@@ -1,7 +1,7 @@
 const { modBot, userBot } = require('./_telegram');
 const { getRedis } = require('./_redis');
 const { releaseCardByOrder } = require('./_requisites');
-const { recordApproval } = require('./_stats');
+const { recordApproval, checkDailyLimit } = require('./_stats');
 
 const MAX_BODY_SIZE = 64 * 1024;
 const PROCESSED_TTL = 86400;
@@ -118,7 +118,24 @@ async function handleCallback(cb, res) {
     return res.status(200).json({ ok: true });
   }
 
-  const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  // Acquire per-order processing lock to prevent race conditions
+  const orderLockKey = 'order:processing:' + orderId;
+  const orderLockAcquired = await r.set(orderLockKey, action + ':' + fromId, { nx: true, ex: 10 });
+  if (!orderLockAcquired) {
+    await modBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u0430\u0442\u044B\u0432\u0430\u0435\u0442\u0441\u044F');
+    return res.status(200).json({ ok: true });
+  }
+
+  try {
+
+  // Re-read order after acquiring lock to get fresh state
+  const rawLocked = await r.get('order:' + orderId);
+  if (!rawLocked) {
+    await modBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430');
+    return res.status(200).json({ ok: true });
+  }
+
+  const order = typeof rawLocked === 'string' ? JSON.parse(rawLocked) : rawLocked;
 
   if (order.status === 'cancelled') {
     await modBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u043C');
@@ -157,6 +174,19 @@ async function handleCallback(cb, res) {
   const displayNum = order.seqId ? '#' + order.seqId : orderId;
 
   if (action === 'approve') {
+    // Check daily limit before approving
+    if (order.payAmount) {
+      try {
+        const limitCheck = await checkDailyLimit(parseFloat(order.payAmount));
+        if (!limitCheck.allowed) {
+          await modBot.answerCallbackQuery(cb.id, '\u0414\u043D\u0435\u0432\u043D\u043E\u0439 \u043B\u0438\u043C\u0438\u0442 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u043D (' + limitCheck.currentTotal + '/' + limitCheck.limit + ' RUB). \u041E\u0434\u043E\u0431\u0440\u0435\u043D\u0438\u0435 \u043D\u0435\u0432\u043E\u0437\u043C\u043E\u0436\u043D\u043E.');
+          return res.status(200).json({ ok: true });
+        }
+      } catch (limitErr) {
+        console.error('Daily limit check error:', limitErr.message);
+      }
+    }
+
     order.status = 'approved';
     order.processedBy = adminName + ' (' + fromId + ')';
     order.processedAt = new Date().toISOString();
@@ -255,6 +285,11 @@ async function handleCallback(cb, res) {
   }
 
   return res.status(200).json({ ok: true });
+
+  } finally {
+    // Always release the per-order processing lock
+    try { await r.del(orderLockKey); } catch (_) {}
+  }
 }
 
 module.exports = async (req, res) => {

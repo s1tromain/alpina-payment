@@ -293,6 +293,29 @@ async function handleCancelOrder(cb, orderId, res) {
     return res.status(200).json({ ok: true });
   }
 
+  // Acquire per-order processing lock to prevent race with approve/reject
+  var orderLockKey = 'order:processing:' + orderId;
+  var orderLockAcquired = await r.set(orderLockKey, 'cancel:' + userId, { nx: true, ex: 10 });
+  if (!orderLockAcquired) {
+    await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u0430\u0442\u044B\u0432\u0430\u0435\u0442\u0441\u044F');
+    return res.status(200).json({ ok: true });
+  }
+
+  try {
+
+  // Re-read order after acquiring lock to get fresh state
+  var rawLocked = await r.get('order:' + orderId);
+  if (!rawLocked) {
+    await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430');
+    return res.status(200).json({ ok: true });
+  }
+  order = typeof rawLocked === 'string' ? JSON.parse(rawLocked) : rawLocked;
+
+  if (order.status !== 'created' && order.status !== 'pending') {
+    await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u0430');
+    return res.status(200).json({ ok: true });
+  }
+
   order.status = 'cancelled';
   order.cancelledAt = new Date().toISOString();
   await r.set('order:' + orderId, JSON.stringify(order), { ex: 86400 });
@@ -316,6 +339,11 @@ async function handleCancelOrder(cb, orderId, res) {
   await userBot.sendPlainMessage(chatId, '\uD83D\uDEAB \u0417\u0430\u044F\u0432\u043A\u0430 ' + displayNum + ' \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430.');
   await userBot.answerCallbackQuery(cb.id, '\u0417\u0430\u044F\u0432\u043A\u0430 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430');
   return res.status(200).json({ ok: true });
+
+  } finally {
+    // Always release the per-order processing lock
+    try { await r.del(orderLockKey); } catch (_) {}
+  }
 }
 
 module.exports = async (req, res) => {

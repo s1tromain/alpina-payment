@@ -19,8 +19,23 @@ function checkAdminAuth(req) {
 }
 
 module.exports = async (req, res) => {
-  // CORS for admin panel
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS for admin panel — restrict to same-origin or explicit ADMIN_ORIGIN
+  const allowedOrigin = process.env.ADMIN_ORIGIN || null;
+  const requestOrigin = req.headers['origin'] || '';
+
+  if (requestOrigin) {
+    // Cross-origin request — only allow if it matches configured origin
+    if (allowedOrigin && requestOrigin === allowedOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    } else if (!allowedOrigin) {
+      // No ADMIN_ORIGIN set — allow same deployment origin (Vercel auto-URLs)
+      res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    } else {
+      return res.status(403).json({ ok: false, error: 'Origin not allowed' });
+    }
+  }
+  // If no Origin header — same-origin request, no CORS headers needed
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Password');
 
@@ -28,8 +43,36 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Admin login rate limit — block after 5 failed attempts per IP for 15 min
+  const r = getRedis();
+  const forwarded = req.headers['x-forwarded-for'];
+  const adminIp = forwarded ? forwarded.split(',')[0].trim() : (req.headers['x-real-ip'] || 'unknown');
+  const adminRlKey = `admin_rl:${adminIp}`;
+
+  if (r) {
+    try {
+      const failures = await r.get(adminRlKey);
+      const failCount = failures ? parseInt(String(failures), 10) : 0;
+      if (failCount >= 5) {
+        return res.status(429).json({ ok: false, error: '\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u043F\u043E\u043F\u044B\u0442\u043E\u043A. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0447\u0435\u0440\u0435\u0437 15 \u043C\u0438\u043D\u0443\u0442.' });
+      }
+    } catch (_) {}
+  }
+
   if (!checkAdminAuth(req)) {
+    // Record failed attempt
+    if (r) {
+      try {
+        const curr = await r.incr(adminRlKey);
+        if (curr === 1) await r.expire(adminRlKey, 900);
+      } catch (_) {}
+    }
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+
+  // Successful auth — clear rate limit
+  if (r) {
+    try { await r.del(adminRlKey); } catch (_) {}
   }
 
   const url = req.url || '';
@@ -114,6 +157,10 @@ module.exports = async (req, res) => {
       const result = await updateRequisite(id, updates);
       if (!result) {
         return res.status(404).json({ ok: false, error: 'Not found' });
+      }
+
+      if (result.error) {
+        return res.status(409).json({ ok: false, error: result.message, reason: result.error });
       }
 
       return res.status(200).json({ ok: true, requisite: result });

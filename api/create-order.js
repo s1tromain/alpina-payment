@@ -82,8 +82,13 @@ async function getCurrentRate() {
 }
 
 module.exports = async (req, res) => {
+  // DELETE = cancel a draft/created order from frontend
+  if (req.method === 'DELETE') {
+    return handleCancelDraft(req, res);
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'POST only' });
+    return res.status(405).json({ ok: false, error: 'POST or DELETE only' });
   }
 
   try {
@@ -123,7 +128,19 @@ module.exports = async (req, res) => {
 
     const ip = getClientIp(req);
     const r = getRedis();
+    // Acquire per-user creation lock to prevent parallel order creation
+    const createLockKey = `user:creating:${telegramId}`;
+    let createLockAcquired = false;
 
+    if (r) {
+      const lockResult = await r.set(createLockKey, '1', { nx: true, ex: 10 });
+      if (!lockResult) {
+        return res.status(429).json({ ok: false, reason: 'concurrent_request', error: 'Запрос уже обрабатывается. Подождите.' });
+      }
+      createLockAcquired = true;
+    }
+
+    try {
     if (r) {
       const cd = await r.get(`order_cd:${ip}`);
       if (cd) {
@@ -214,6 +231,7 @@ module.exports = async (req, res) => {
       await r.set(`order:${orderId}`, JSON.stringify(orderData), { ex: ORDER_TTL });
       if (telegramId) {
         await r.lpush('user:orders:' + telegramId, orderId);
+        await r.ltrim('user:orders:' + telegramId, 0, 99);
       }
       await r.set(`order_cd:${ip}`, '1', { ex: 30 });
     }
@@ -231,8 +249,65 @@ module.exports = async (req, res) => {
       bankName: assignedCard.bankName,
       expiresAt: expiresAt.toISOString()
     });
+
+    } finally {
+      // Always release the per-user creation lock
+      if (createLockAcquired && r) {
+        try { await r.del(createLockKey); } catch (_) {}
+      }
+    }
   } catch (err) {
     console.error('Create order error:', err.message);
     return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
 };
+
+async function handleCancelDraft(req, res) {
+  try {
+    const initData = req.headers['x-telegram-init-data'];
+    if (!initData) {
+      return res.status(401).json({ ok: false, error: '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F' });
+    }
+    const tgUser = validateInitData(initData);
+    if (!tgUser) {
+      return res.status(401).json({ ok: false, error: '\u041D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438' });
+    }
+
+    const telegramId = String(tgUser.id);
+    const { orderId } = req.body || {};
+
+    if (!orderId || typeof orderId !== 'string') {
+      return res.status(400).json({ ok: false, error: 'orderId required' });
+    }
+
+    const r = getRedis();
+    if (!r) {
+      return res.status(503).json({ ok: false, error: '\u0421\u0435\u0440\u0432\u0438\u0441 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D' });
+    }
+
+    const raw = await r.get('order:' + orderId);
+    if (!raw) {
+      return res.status(404).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430' });
+    }
+
+    const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+    if (order.telegramId !== telegramId) {
+      return res.status(403).json({ ok: false, error: '\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430' });
+    }
+
+    if (order.status !== 'created') {
+      return res.status(200).json({ ok: true, already: true });
+    }
+
+    order.status = 'cancelled';
+    order.cancelledAt = new Date().toISOString();
+    await r.set('order:' + orderId, JSON.stringify(order), { ex: ORDER_TTL });
+    await releaseCard(order.assignedRequisiteId);
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('Cancel draft error:', err.message);
+    return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
+}

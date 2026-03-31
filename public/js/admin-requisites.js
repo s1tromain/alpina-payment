@@ -214,7 +214,11 @@
           showStatus(newActive ? '\u041A\u0430\u0440\u0442\u0430 \u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u043D\u0430' : '\u041A\u0430\u0440\u0442\u0430 \u0434\u0435\u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u043D\u0430');
           loadCards();
         } else {
-          showStatus(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430', true);
+          if (data.reason === 'busy_disable') {
+            showStatus('\u041D\u0435\u043B\u044C\u0437\u044F \u0434\u0435\u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043A\u0430\u0440\u0442\u0443: \u043E\u043D\u0430 \u0441\u0435\u0439\u0447\u0430\u0441 \u0437\u0430\u043D\u044F\u0442\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u043E\u0439', true);
+          } else {
+            showStatus(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430', true);
+          }
         }
       }).catch(function() { showStatus('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F', true); });
     }
@@ -266,7 +270,11 @@
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430');
           loadCards();
         } else {
-          modalError.textContent = data.error || '\u041E\u0448\u0438\u0431\u043A\u0430';
+          if (data.reason === 'busy_edit') {
+            modalError.textContent = '\u041D\u0435\u043B\u044C\u0437\u044F \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043A\u0430\u0440\u0442\u0443: \u043E\u043D\u0430 \u0441\u0435\u0439\u0447\u0430\u0441 \u0437\u0430\u043D\u044F\u0442\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u043E\u0439';
+          } else {
+            modalError.textContent = data.error || '\u041E\u0448\u0438\u0431\u043A\u0430';
+          }
           modalError.style.display = 'block';
         }
       }).catch(function() {

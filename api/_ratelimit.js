@@ -16,8 +16,10 @@ async function checkAntiSpam(req, fields) {
   const result = { allowed: true, error: null, suspicious: false, reason: null };
   const r = getRedis();
   if (!r) {
+    result.allowed = false;
     result.suspicious = true;
     result.reason = 'redis_unavailable';
+    result.error = '\u0421\u0435\u0440\u0432\u0438\u0441 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.';
     return result;
   }
 
@@ -71,8 +73,10 @@ async function checkAntiSpam(req, fields) {
     return result;
   } catch (err) {
     console.error('Redis check error:', err.message);
+    result.allowed = false;
     result.suspicious = true;
     result.reason = 'redis_error';
+    result.error = '\u0421\u0435\u0440\u0432\u0438\u0441 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.';
     return result;
   }
 }

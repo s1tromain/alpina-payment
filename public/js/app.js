@@ -85,6 +85,19 @@
       timerTextEl.textContent = '30:00';
       submitBtn.disabled = false;
       submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
+
+      // Cancel draft order to release card
+      if (currentOrder && currentOrder.orderId) {
+        var cancelXhr = new XMLHttpRequest();
+        cancelXhr.open('DELETE', '/api/create-order');
+        cancelXhr.setRequestHeader('Content-Type', 'application/json');
+        if (tgInitData) {
+          cancelXhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+        }
+        cancelXhr.send(JSON.stringify({ orderId: currentOrder.orderId }));
+        currentOrder = null;
+      }
+
       showScreen('exchange');
     }
   });

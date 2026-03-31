@@ -79,6 +79,16 @@ async function updateRequisite(id, updates) {
   const existing = await getRequisite(id);
   if (!existing) return null;
 
+  // Block editing cardNumber/bankName on busy cards
+  if (existing.status === 'busy') {
+    if (updates.cardNumber !== undefined || updates.bankName !== undefined) {
+      return { error: 'busy_edit', message: '\u041D\u0435\u043B\u044C\u0437\u044F \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u043D\u044F\u0442\u0443\u044E \u043A\u0430\u0440\u0442\u0443' };
+    }
+    if (updates.isActive === false) {
+      return { error: 'busy_disable', message: '\u041D\u0435\u043B\u044C\u0437\u044F \u0434\u0435\u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u043D\u044F\u0442\u0443\u044E \u043A\u0430\u0440\u0442\u0443' };
+    }
+  }
+
   if (updates.cardNumber !== undefined) existing.cardNumber = updates.cardNumber.trim();
   if (updates.bankName !== undefined) existing.bankName = updates.bankName.trim();
   if (updates.isActive !== undefined) existing.isActive = updates.isActive;
