@@ -6,7 +6,8 @@ const { assignCard, releaseCard } = require('./_requisites');
 const { checkDailyLimit } = require('./_stats');
 
 const ORDER_TTL = 86400;
-const ORDER_LIFETIME = 1800;
+const ORDER_LIFETIME = 900;
+const DRAFT_LIFETIME = 120;
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -87,8 +88,13 @@ module.exports = async (req, res) => {
     return handleCancelDraft(req, res);
   }
 
+  // PATCH = confirm draft (frontend successfully showed payment screen)
+  if (req.method === 'PATCH') {
+    return handleConfirmDraft(req, res);
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'POST or DELETE only' });
+    return res.status(405).json({ ok: false, error: 'POST, DELETE or PATCH only' });
   }
 
   try {
@@ -190,6 +196,7 @@ module.exports = async (req, res) => {
     const orderId = generateOrderId();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ORDER_LIFETIME * 1000);
+    const draftExpiresAt = new Date(now.getTime() + DRAFT_LIFETIME * 1000);
 
     let seqId = null;
     if (r) {
@@ -222,6 +229,8 @@ module.exports = async (req, res) => {
       assignedCardNumber: assignedCard.cardNumber,
       assignedBankName: assignedCard.bankName,
       status: 'created',
+      confirmed: false,
+      draftExpiresAt: draftExpiresAt.toISOString(),
       clientIp: ip,
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString()
@@ -308,6 +317,60 @@ async function handleCancelDraft(req, res) {
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('Cancel draft error:', err.message);
+    return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
+  }
+}
+
+async function handleConfirmDraft(req, res) {
+  try {
+    const initData = req.headers['x-telegram-init-data'];
+    if (!initData) {
+      return res.status(401).json({ ok: false, error: '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044F' });
+    }
+    const tgUser = validateInitData(initData);
+    if (!tgUser) {
+      return res.status(401).json({ ok: false, error: '\u041D\u0435\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438' });
+    }
+
+    const telegramId = String(tgUser.id);
+    const { orderId } = req.body || {};
+
+    if (!orderId || typeof orderId !== 'string') {
+      return res.status(400).json({ ok: false, error: 'orderId required' });
+    }
+
+    const r = getRedis();
+    if (!r) {
+      return res.status(503).json({ ok: false, error: '\u0421\u0435\u0440\u0432\u0438\u0441 \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D' });
+    }
+
+    const raw = await r.get('order:' + orderId);
+    if (!raw) {
+      return res.status(404).json({ ok: false, error: '\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430' });
+    }
+
+    const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+    if (order.telegramId !== telegramId) {
+      return res.status(403).json({ ok: false, error: '\u041D\u0435\u0442 \u0434\u043E\u0441\u0442\u0443\u043F\u0430' });
+    }
+
+    if (order.status !== 'created') {
+      return res.status(200).json({ ok: true, already: true });
+    }
+
+    if (order.confirmed) {
+      return res.status(200).json({ ok: true, already: true });
+    }
+
+    order.confirmed = true;
+    order.confirmedAt = new Date().toISOString();
+    delete order.draftExpiresAt;
+    await r.set('order:' + orderId, JSON.stringify(order), { ex: ORDER_TTL });
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('Confirm draft error:', err.message);
     return res.status(500).json({ ok: false, error: '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430' });
   }
 }

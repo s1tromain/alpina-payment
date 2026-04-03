@@ -11,9 +11,9 @@ module.exports = async (req, res) => {
   let redisExpired = 0;
   let orphanedCardsReleased = 0;
 
-  const ORDER_LIFETIME = 1800; // 30 min for created orders
-  const PENDING_TIMEOUT = 7200; // 2 hours for pending orders without action
-  const APPROVED_TIMEOUT = 86400; // 24 hours for approved orders without completion
+  const ORDER_LIFETIME = 900; // 15 min for created orders (payment window)
+  const DRAFT_LIFETIME = 120; // 2 min for unconfirmed draft orders
+  const TOTAL_ORDER_LIFETIME = 1800; // 30 min total from creation (pending + approved)
 
   // Scan Redis orders for expired / stuck ones
   if (r) {
@@ -37,26 +37,31 @@ module.exports = async (req, res) => {
         let shouldExpire = false;
         let notifyMessage = null;
 
-        // created: expire if past expiresAt
-        if (order.status === 'created' && order.expiresAt && new Date(order.expiresAt) < now) {
+        // Unconfirmed draft: expire after DRAFT_LIFETIME (2 min)
+        if (order.status === 'created' && !order.confirmed && order.draftExpiresAt && new Date(order.draftExpiresAt) < now) {
+          shouldExpire = true;
+          notifyMessage = null; // Don't notify — user never saw the payment page
+        }
+
+        // created: expire if past expiresAt (15 min payment window)
+        if (!shouldExpire && order.status === 'created' && order.expiresAt && new Date(order.expiresAt) < now) {
           shouldExpire = true;
           notifyMessage = '\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0435 \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.';
         }
 
-        // pending: expire if stuck longer than PENDING_TIMEOUT
+        // pending: expire if total order age > 30 min from creation
         if (order.status === 'pending' && order.createdAt) {
           const age = now.getTime() - new Date(order.createdAt).getTime();
-          if (age > PENDING_TIMEOUT * 1000) {
+          if (age > TOTAL_ORDER_LIFETIME * 1000) {
             shouldExpire = true;
             notifyMessage = '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u0430 \u0438 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430.';
           }
         }
 
-        // approved: expire if stuck longer than APPROVED_TIMEOUT without completion
-        if (order.status === 'approved' && (order.processedAt || order.createdAt)) {
-          const ref = order.processedAt || order.createdAt;
-          const age = now.getTime() - new Date(ref).getTime();
-          if (age > APPROVED_TIMEOUT * 1000) {
+        // approved: expire if total order age > 30 min from creation
+        if (order.status === 'approved' && order.createdAt) {
+          const age = now.getTime() - new Date(order.createdAt).getTime();
+          if (age > TOTAL_ORDER_LIFETIME * 1000) {
             shouldExpire = true;
             notifyMessage = '\u0412\u0430\u0448\u0430 \u0437\u0430\u044F\u0432\u043A\u0430 \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u0430 \u0438 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430.';
           }

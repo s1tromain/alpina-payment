@@ -192,6 +192,13 @@ module.exports = async (req, res) => {
       return res.status(403).json({ ok: false, error: 'Нет доступа к этой заявке' });
     }
 
+    // Fallback confirm: if PATCH didn't arrive, confirm on submit
+    if (!order.confirmed) {
+      order.confirmed = true;
+      order.confirmedAt = new Date().toISOString();
+      delete order.draftExpiresAt;
+    }
+
     if (new Date(order.expiresAt) < new Date()) {
       order.status = 'expired';
       await r.set(`order:${orderId}`, JSON.stringify(order), { ex: 86400 });
@@ -219,18 +226,42 @@ module.exports = async (req, res) => {
     const buttons = buildButtons(orderId);
     const safeFilename = sanitizeFilename(fileInfo.filename);
 
-    const channelResult = await modBot.sendPhotoBuffer(
-      CHANNEL_ID, fileBuffer, safeFilename, fileInfo.mimeType, caption, buttons
-    );
-
     let channelMessageId = null;
-    if (channelResult.ok && channelResult.result) {
+
+    // Try sending photo first, fall back to text
+    let channelResult = null;
+    try {
+      channelResult = await modBot.sendPhotoBuffer(
+        CHANNEL_ID, fileBuffer, safeFilename, fileInfo.mimeType, caption, buttons
+      );
+    } catch (photoErr) {
+      console.error('Photo send error:', photoErr.message);
+    }
+
+    if (channelResult && channelResult.ok && channelResult.result) {
       channelMessageId = channelResult.result.message_id;
     } else {
-      const textResult = await modBot.sendMessage(CHANNEL_ID, caption, buttons);
-      if (textResult.ok && textResult.result) {
-        channelMessageId = textResult.result.message_id;
+      try {
+        const textResult = await modBot.sendMessage(CHANNEL_ID, caption, buttons);
+        if (textResult.ok && textResult.result) {
+          channelMessageId = textResult.result.message_id;
+        }
+      } catch (textErr) {
+        console.error('Text send error:', textErr.message);
       }
+    }
+
+    // If both sends failed — don't change order status, let user retry
+    if (!channelMessageId) {
+      return res.status(502).json({ ok: false, error: '\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443 \u0432 \u043A\u0430\u043D\u0430\u043B. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.' });
+    }
+
+    // Extend expiresAt to 30 minutes from creation for the processing phase
+    const totalLifetime = 1800 * 1000; // 30 min total
+    const createdTime = new Date(order.createdAt).getTime();
+    const newExpiresAt = new Date(createdTime + totalLifetime);
+    if (newExpiresAt > new Date()) {
+      order.expiresAt = newExpiresAt.toISOString();
     }
 
     order.status = 'pending';

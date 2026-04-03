@@ -229,6 +229,15 @@
 
         showScreen('payment');
 
+        // Confirm draft order — tells backend the user saw the payment page
+        var confirmXhr = new XMLHttpRequest();
+        confirmXhr.open('PATCH', '/api/create-order');
+        confirmXhr.setRequestHeader('Content-Type', 'application/json');
+        if (tgInitData) {
+          confirmXhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+        }
+        confirmXhr.send(JSON.stringify({ orderId: data.orderId }));
+
         nextBtn.disabled = false;
         nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
       } catch (e) {
