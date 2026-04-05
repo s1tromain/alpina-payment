@@ -93,12 +93,14 @@ module.exports = async (req, res) => {
           if (!orderRaw) {
             // Order gone from Redis — release the card
             await releaseCard(req.id);
+            console.log('Released orphaned card ' + req.id + ' (order ' + req.currentOrderId + ' not found)');
             orphanedCardsReleased++;
           } else {
             const order = typeof orderRaw === 'string' ? JSON.parse(orderRaw) : orderRaw;
             // Card busy but order already in final state — release
             if (['completed', 'rejected', 'expired', 'cancelled'].includes(order.status)) {
               await releaseCard(req.id);
+              console.log('Released orphaned card ' + req.id + ' (order ' + req.currentOrderId + ' status: ' + order.status + ')');
               orphanedCardsReleased++;
             }
           }

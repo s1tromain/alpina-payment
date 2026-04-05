@@ -142,7 +142,33 @@ async function assignCard(orderId) {
     if (!raw) continue;
     const req = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-    if (!req.isActive || req.status !== 'free') continue;
+    if (!req.isActive) continue;
+
+    // If card is busy, check if its order is still valid — recover orphaned cards
+    if (req.status === 'busy' && req.currentOrderId) {
+      const orderRaw = await r.get('order:' + req.currentOrderId);
+      let shouldRelease = false;
+      if (!orderRaw) {
+        shouldRelease = true;
+      } else {
+        const order = typeof orderRaw === 'string' ? JSON.parse(orderRaw) : orderRaw;
+        if (['completed', 'rejected', 'expired', 'cancelled'].includes(order.status)) {
+          shouldRelease = true;
+        }
+      }
+      if (shouldRelease) {
+        req.status = 'free';
+        req.currentOrderId = null;
+        req.updatedAt = new Date().toISOString();
+        await r.set('requisite:' + id, JSON.stringify(req));
+        await r.del('requisite:lock:' + id);
+        console.log('Released orphaned card ' + id + ' during assignCard');
+      } else {
+        continue; // genuinely busy
+      }
+    }
+
+    if (req.status !== 'free') continue;
 
     // Attempt atomic lock using SET NX with TTL as safety net
     const lockKey = 'requisite:lock:' + id;
