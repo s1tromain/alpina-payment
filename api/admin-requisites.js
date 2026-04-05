@@ -5,7 +5,8 @@ const {
   createRequisite,
   updateRequisite,
   deleteRequisite,
-  seedTestCards
+  seedTestCards,
+  repairRequisitesState
 } = require('./_requisites');
 const { getDailyStats, getStatsHistory, DAILY_LIMIT_RUB } = require('./_stats');
 
@@ -117,6 +118,7 @@ module.exports = async (req, res) => {
         return res.status(200).json({ ok: true, requisite });
       }
 
+      await repairRequisitesState();
       const all = await getAllRequisites();
       return res.status(200).json({ ok: true, requisites: all });
     }

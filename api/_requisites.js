@@ -235,6 +235,50 @@ async function releaseCardByOrder(order) {
 }
 
 /**
+ * Repair all requisites state: release busy cards whose orders are missing or inactive.
+ * Returns count of released cards.
+ */
+async function repairRequisitesState() {
+  const r = getRedis();
+  if (!r) return 0;
+
+  const allRequisites = await getAllRequisites();
+  let released = 0;
+
+  for (const req of allRequisites) {
+    if (req.status !== 'busy') continue;
+
+    let shouldRelease = false;
+
+    if (!req.currentOrderId) {
+      shouldRelease = true;
+    } else {
+      const orderRaw = await r.get('order:' + req.currentOrderId);
+      if (!orderRaw) {
+        shouldRelease = true;
+      } else {
+        const order = typeof orderRaw === 'string' ? JSON.parse(orderRaw) : orderRaw;
+        if (!['created', 'pending', 'approved'].includes(order.status)) {
+          shouldRelease = true;
+        }
+      }
+    }
+
+    if (shouldRelease) {
+      req.status = 'free';
+      req.currentOrderId = null;
+      req.updatedAt = new Date().toISOString();
+      await r.set('requisite:' + req.id, JSON.stringify(req));
+      await r.del('requisite:lock:' + req.id);
+      console.log('repairRequisitesState: released card ' + req.id + ' (order: ' + (req.currentOrderId || 'none') + ')');
+      released++;
+    }
+  }
+
+  return released;
+}
+
+/**
  * Seed initial test cards (idempotent — skips if cards already exist).
  */
 async function seedTestCards() {
@@ -272,5 +316,6 @@ module.exports = {
   assignCard,
   releaseCard,
   releaseCardByOrder,
+  repairRequisitesState,
   seedTestCards
 };

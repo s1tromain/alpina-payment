@@ -11,7 +11,6 @@
   var adminPasswordInput = document.getElementById('adminPassword');
   var loginBtn = document.getElementById('loginBtn');
   var addCardBtn = document.getElementById('addCardBtn');
-  var seedBtn = document.getElementById('seedBtn');
   var refreshBtn = document.getElementById('refreshBtn');
   var cardsBody = document.getElementById('cardsBody');
   var statusMsg = document.getElementById('statusMsg');
@@ -152,7 +151,7 @@
 
   function renderCards(cards) {
     if (!cards || cards.length === 0) {
-      cardsBody.innerHTML = '<tr><td colspan="6" class="empty-msg">\u041D\u0435\u0442 \u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u043E\u0432. \u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043A\u0430\u0440\u0442\u0443 \u0438\u043B\u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0442\u0435\u0441\u0442\u043E\u0432\u044B\u0435.</td></tr>';
+      cardsBody.innerHTML = '<tr><td colspan="6" class="empty-msg">\u041D\u0435\u0442 \u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u043E\u0432. \u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043A\u0430\u0440\u0442\u0443.</td></tr>';
       return;
     }
 
@@ -304,18 +303,6 @@
 
   cardModal.addEventListener('click', function(e) {
     if (e.target === cardModal) cardModal.classList.remove('active');
-  });
-
-  // Seed
-  seedBtn.addEventListener('click', function() {
-    apiCall('GET', '?action=seed').then(function(data) {
-      if (data.ok) {
-        showStatus(data.seeded ? '\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043E ' + data.seeded + ' \u0442\u0435\u0441\u0442\u043E\u0432\u044B\u0445 \u043A\u0430\u0440\u0442' : (data.message || '\u0413\u043E\u0442\u043E\u0432\u043E'));
-        loadCards();
-      } else {
-        showStatus(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430', true);
-      }
-    }).catch(function() { showStatus('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F', true); });
   });
 
   // Refresh — reload cards + stats

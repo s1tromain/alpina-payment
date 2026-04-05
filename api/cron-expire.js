@@ -5,7 +5,7 @@ module.exports = async (req, res) => {
 
   const { getRedis } = require('./_redis');
   const { userBot } = require('./_telegram');
-  const { releaseCardByOrder, getAllRequisites, releaseCard } = require('./_requisites');
+  const { releaseCardByOrder, repairRequisitesState } = require('./_requisites');
 
   const r = getRedis();
   let redisExpired = 0;
@@ -84,28 +84,9 @@ module.exports = async (req, res) => {
       console.error('Redis expire scan error:', err.message);
     }
 
-    // Cleanup orphaned busy cards: card is busy but its order no longer exists
+    // Repair orphaned busy cards via centralized function
     try {
-      const allRequisites = await getAllRequisites();
-      for (const req of allRequisites) {
-        if (req.status === 'busy' && req.currentOrderId) {
-          const orderRaw = await r.get('order:' + req.currentOrderId);
-          if (!orderRaw) {
-            // Order gone from Redis — release the card
-            await releaseCard(req.id);
-            console.log('Released orphaned card ' + req.id + ' (order ' + req.currentOrderId + ' not found)');
-            orphanedCardsReleased++;
-          } else {
-            const order = typeof orderRaw === 'string' ? JSON.parse(orderRaw) : orderRaw;
-            // Card busy but order already in final state — release
-            if (['completed', 'rejected', 'expired', 'cancelled'].includes(order.status)) {
-              await releaseCard(req.id);
-              console.log('Released orphaned card ' + req.id + ' (order ' + req.currentOrderId + ' status: ' + order.status + ')');
-              orphanedCardsReleased++;
-            }
-          }
-        }
-      }
+      orphanedCardsReleased = await repairRequisitesState();
     } catch (err) {
       console.error('Orphaned card cleanup error:', err.message);
     }
