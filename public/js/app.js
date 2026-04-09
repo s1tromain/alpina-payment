@@ -1,6 +1,12 @@
 (() => {
   'use strict';
 
+  /* ========== Config ========== */
+
+  var CONFIG = {
+    supportUsername: '@alpina_support'
+  };
+
   /* ========== Theme ========== */
 
   document.documentElement.setAttribute('data-theme', 'dark');
@@ -18,9 +24,12 @@
   /* ========== DOM Elements ========== */
 
   var screens = {
+    offer: document.getElementById('screenOffer'),
     exchange: document.getElementById('screenExchange'),
     payment: document.getElementById('screenPayment')
   };
+
+  var offerAcceptBtn = document.getElementById('offerAcceptBtn');
 
   var amountRubInput = document.getElementById('amountRub');
   var payoutDetailsInput = document.getElementById('payoutDetails');
@@ -76,6 +85,25 @@
     } else {
       stopRateUpdates();
     }
+  }
+
+  /* ========== Offer / Agreement ========== */
+
+  var OFFER_KEY = 'alpina_offer_accepted';
+
+  function isOfferAccepted() {
+    return localStorage.getItem(OFFER_KEY) === '1';
+  }
+
+  function acceptOffer() {
+    localStorage.setItem(OFFER_KEY, '1');
+  }
+
+  if (offerAcceptBtn) {
+    offerAcceptBtn.addEventListener('click', function () {
+      acceptOffer();
+      showScreen('exchange');
+    });
   }
 
   backBtn.addEventListener('click', function () {
@@ -241,13 +269,13 @@
         nextBtn.disabled = false;
         nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
       } catch (e) {
-        showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430');
+        showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430', { showSupport: true });
         nextBtn.disabled = false;
         nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
       }
     };
     xhr.onerror = function () {
-      showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435.');
+      showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435.', { showSupport: true });
       nextBtn.disabled = false;
       nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
     };
@@ -272,7 +300,7 @@
 
         setTimeout(function () {
           showScreen('exchange');
-          showAlert('\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.');
+          showAlert('\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.', { showSupport: true });
         }, 2000);
         return;
       }
@@ -399,13 +427,13 @@
         currentOrder = null;
 
       } catch (e) {
-        showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430');
+        showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430', { showSupport: true });
         submitBtn.disabled = false;
         submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
       }
     };
     xhr.onerror = function () {
-      showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435.');
+      showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435.', { showSupport: true });
       submitBtn.disabled = false;
       submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
     };
@@ -446,12 +474,49 @@
     return data.error || '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430';
   }
 
-  function showAlert(msg) {
-    alert(msg);
+  function showAlert(msg, opts) {
+    opts = opts || {};
+    var existing = document.getElementById('toastAlert');
+    if (existing) existing.remove();
+
+    var toast = document.createElement('div');
+    toast.id = 'toastAlert';
+    toast.className = 'toast-alert' + (opts.type === 'success' ? ' toast-success' : '');
+
+    var text = document.createElement('div');
+    text.className = 'toast-text';
+    text.textContent = msg;
+    toast.appendChild(text);
+
+    if (opts.showSupport) {
+      var support = document.createElement('div');
+      support.className = 'toast-support';
+      support.textContent = '\u041F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430: ' + CONFIG.supportUsername;
+      toast.appendChild(support);
+    }
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.textContent = '\u00d7';
+    closeBtn.onclick = function() { toast.remove(); };
+    toast.appendChild(closeBtn);
+
+    document.body.appendChild(toast);
+    requestAnimationFrame(function() { toast.classList.add('visible'); });
+
+    var dur = opts.duration || 5000;
+    setTimeout(function() {
+      toast.classList.remove('visible');
+      setTimeout(function() { toast.remove(); }, 300);
+    }, dur);
   }
 
   /* ========== Init ========== */
 
-  showScreen('exchange');
+  if (isOfferAccepted()) {
+    showScreen('exchange');
+  } else {
+    showScreen('offer');
+  }
 
 })();

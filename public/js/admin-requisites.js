@@ -5,6 +5,9 @@
   var password = '';
   var editingId = null;
 
+  var SESSION_KEY = 'alpina_admin_session';
+  var SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
   var authBox = document.getElementById('authBox');
   var mainPanel = document.getElementById('mainPanel');
   var authError = document.getElementById('authError');
@@ -22,6 +25,7 @@
   var modalError = document.getElementById('modalError');
   var modalCancel = document.getElementById('modalCancel');
   var modalSave = document.getElementById('modalSave');
+  var modalCloseX = document.getElementById('modalCloseX');
 
   // Monitoring elements
   var monTotalRub = document.getElementById('monTotalRub');
@@ -59,6 +63,34 @@
       opts.body = JSON.stringify(body);
     }
     return fetch(url, opts).then(function(r) { return r.json(); });
+  }
+
+  // ===== Session helpers =====
+  function saveSession(pwd) {
+    try {
+      var data = JSON.stringify({ t: Date.now(), h: btoa(pwd) });
+      localStorage.setItem(SESSION_KEY, data);
+    } catch(e) {}
+  }
+
+  function loadSession() {
+    try {
+      var raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (Date.now() - data.t > SESSION_TTL) {
+        localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+      return atob(data.h);
+    } catch(e) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+  }
+
+  function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
   }
 
   // ===== Tabs =====
@@ -298,6 +330,10 @@
   });
 
   modalCancel.addEventListener('click', function() {
+    cardModal.classList.remove('active');
+  });
+
+  modalCloseX.addEventListener('click', function() {
     cardModal.classList.remove('active');
   });
 
