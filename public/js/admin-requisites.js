@@ -41,6 +41,37 @@
   var tabBtns = document.querySelectorAll('.tab-btn');
   var tabContents = document.querySelectorAll('.tab-content');
 
+  // ===== Session helpers =====
+  function saveSession(pwd) {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        t: Date.now(),
+        k: btoa(unescape(encodeURIComponent(pwd)))
+      }));
+    } catch (_) {}
+  }
+
+  function restoreSession() {
+    try {
+      var raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      var s = JSON.parse(raw);
+      if (!s.t || !s.k) return null;
+      if (Date.now() - s.t > SESSION_TTL) {
+        localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+      return decodeURIComponent(escape(atob(s.k)));
+    } catch (_) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+  }
+
+  function clearSession() {
+    try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+  }
+
   function formatNum(n) {
     return Number(n).toLocaleString('ru-RU');
   }
@@ -159,6 +190,7 @@
         password = '';
         return;
       }
+      saveSession(password);
       authBox.style.display = 'none';
       mainPanel.style.display = 'block';
       renderCards(data.requisites);
@@ -346,5 +378,25 @@
     loadCards();
     loadStats();
   });
+
+  // ===== Auto-login from saved session =====
+  var savedPwd = restoreSession();
+  if (savedPwd) {
+    password = savedPwd;
+    apiCall('GET').then(function(data) {
+      if (data.ok) {
+        authBox.style.display = 'none';
+        mainPanel.style.display = 'block';
+        renderCards(data.requisites);
+        loadStats();
+      } else {
+        clearSession();
+        password = '';
+      }
+    }).catch(function() {
+      clearSession();
+      password = '';
+    });
+  }
 
 })();
