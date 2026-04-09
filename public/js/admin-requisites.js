@@ -26,6 +26,8 @@
   var modalCancel = document.getElementById('modalCancel');
   var modalSave = document.getElementById('modalSave');
   var modalCloseX = document.getElementById('modalCloseX');
+  var modalIsActive = document.getElementById('modalIsActive');
+  var modalIsActiveLabel = document.getElementById('modalIsActiveLabel');
 
   // Monitoring elements
   var monTotalRub = document.getElementById('monTotalRub');
@@ -239,7 +241,7 @@
         + '<td>' + statusBadge + '</td>'
         + '<td style="font-size:.75rem">' + escHtml(orderCell) + '</td>'
         + '<td class="td-actions">'
-          + '<button class="btn btn-sm btn-secondary" data-action="edit" data-id="' + escHtml(c.id) + '" data-card="' + escHtml(c.cardNumber) + '" data-bank="' + escHtml(c.bankName) + '">\u0420\u0435\u0434.</button>'
+          + '<button class="btn btn-sm btn-secondary" data-action="edit" data-id="' + escHtml(c.id) + '" data-card="' + escHtml(c.cardNumber) + '" data-bank="' + escHtml(c.bankName) + '" data-active="' + (c.isActive ? 'true' : 'false') + '">\u0420\u0435\u0434.</button>'
           + '<button class="btn btn-sm ' + toggleClass + '" data-action="toggle" data-id="' + escHtml(c.id) + '" data-active="' + (c.isActive ? 'false' : 'true') + '">' + toggleLabel + '</button>'
           + '<button class="btn btn-sm btn-danger" data-action="delete" data-id="' + escHtml(c.id) + '">\u0423\u0434\u0430\u043B\u0438\u0442\u044C</button>'
         + '</td>'
@@ -266,8 +268,11 @@
       modalTitle.textContent = '\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043A\u0430\u0440\u0442\u0443';
       modalCardNumber.value = btn.getAttribute('data-card');
       modalBankName.value = btn.getAttribute('data-bank');
+      modalIsActive.checked = btn.getAttribute('data-active') === 'true';
+      modalIsActiveLabel.textContent = modalIsActive.checked ? '\u0410\u043A\u0442\u0438\u0432\u043D\u0430' : '\u041D\u0435\u0430\u043A\u0442\u0438\u0432\u043D\u0430';
       modalError.style.display = 'none';
       cardModal.classList.add('active');
+      document.body.style.overflow = 'hidden';
     }
 
     if (action === 'toggle') {
@@ -305,8 +310,11 @@
     modalTitle.textContent = '\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u043A\u0430\u0440\u0442\u0443';
     modalCardNumber.value = '';
     modalBankName.value = '';
+    modalIsActive.checked = true;
+    modalIsActiveLabel.textContent = '\u0410\u043A\u0442\u0438\u0432\u043D\u0430';
     modalError.style.display = 'none';
     cardModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
   });
 
   // Save (add/edit)
@@ -327,9 +335,10 @@
     modalError.style.display = 'none';
 
     if (editingId) {
-      apiCall('PUT', '', { id: editingId, cardNumber: cn, bankName: bn }).then(function(data) {
+      apiCall('PUT', '', { id: editingId, cardNumber: cn, bankName: bn, isActive: modalIsActive.checked }).then(function(data) {
         if (data.ok) {
           cardModal.classList.remove('active');
+          document.body.style.overflow = '';
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430');
           loadCards();
         } else {
@@ -345,9 +354,10 @@
         modalError.style.display = 'block';
       });
     } else {
-      apiCall('POST', '', { cardNumber: cn, bankName: bn }).then(function(data) {
+      apiCall('POST', '', { cardNumber: cn, bankName: bn, isActive: modalIsActive.checked }).then(function(data) {
         if (data.ok) {
           cardModal.classList.remove('active');
+          document.body.style.overflow = '';
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430');
           loadCards();
         } else {
@@ -363,14 +373,23 @@
 
   modalCancel.addEventListener('click', function() {
     cardModal.classList.remove('active');
+    document.body.style.overflow = '';
   });
 
   modalCloseX.addEventListener('click', function() {
     cardModal.classList.remove('active');
+    document.body.style.overflow = '';
+  });
+
+  modalIsActive.addEventListener('change', function() {
+    modalIsActiveLabel.textContent = this.checked ? '\u0410\u043A\u0442\u0438\u0432\u043D\u0430' : '\u041D\u0435\u0430\u043A\u0442\u0438\u0432\u043D\u0430';
   });
 
   cardModal.addEventListener('click', function(e) {
-    if (e.target === cardModal) cardModal.classList.remove('active');
+    if (e.target === cardModal) {
+      cardModal.classList.remove('active');
+      document.body.style.overflow = '';
+    }
   });
 
   // Refresh — reload cards + stats
