@@ -49,9 +49,10 @@ function createBotClient(getToken) {
     return resp.json();
   }
 
-  async function editMessageCaption(chatId, messageId, caption, replyMarkup) {
+  async function editMessageCaption(chatId, messageId, caption, replyMarkup, parseMode) {
     const body = { chat_id: chatId, message_id: messageId };
     if (caption !== undefined) body.caption = caption;
+    if (parseMode) body.parse_mode = parseMode;
     if (replyMarkup) body.reply_markup = replyMarkup;
     return callJson('editMessageCaption', body);
   }
@@ -69,8 +70,9 @@ function createBotClient(getToken) {
     return callJson('sendMessage', body);
   }
 
-  async function editMessageText(chatId, messageId, text, replyMarkup) {
+  async function editMessageText(chatId, messageId, text, replyMarkup, parseMode) {
     const body = { chat_id: chatId, message_id: messageId, text };
+    if (parseMode) body.parse_mode = parseMode;
     if (replyMarkup) body.reply_markup = replyMarkup;
     return callJson('editMessageText', body);
   }

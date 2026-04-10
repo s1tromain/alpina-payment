@@ -208,7 +208,7 @@ async function assignCard(orderId) {
  * Release a card back to free status.
  * Called when order reaches a final state.
  */
-async function releaseCard(requisiteId) {
+async function releaseCard(requisiteId, expectedOrderId) {
   const r = getRedis();
   if (!r) return;
   if (!requisiteId) return;
@@ -217,6 +217,12 @@ async function releaseCard(requisiteId) {
   if (!raw) return;
 
   const req = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+  // Safety: skip release if card was already reassigned to a different order
+  if (expectedOrderId && req.currentOrderId && req.currentOrderId !== expectedOrderId) {
+    return;
+  }
+
   req.status = 'free';
   req.currentOrderId = null;
   req.updatedAt = new Date().toISOString();
@@ -230,7 +236,7 @@ async function releaseCard(requisiteId) {
  */
 async function releaseCardByOrder(order) {
   if (order && order.assignedRequisiteId) {
-    await releaseCard(order.assignedRequisiteId);
+    await releaseCard(order.assignedRequisiteId, order.orderId);
   }
 }
 

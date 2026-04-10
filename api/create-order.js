@@ -162,14 +162,14 @@ module.exports = async (req, res) => {
           if (existing.status === 'created' && existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
             existing.status = 'expired';
             await r.set('order:' + oid, JSON.stringify(existing), { ex: 86400 });
-            await releaseCard(existing.assignedRequisiteId);
+            await releaseCard(existing.assignedRequisiteId, existing.orderId);
             continue;
           }
           if (existing.status === 'created') {
             existing.status = 'cancelled';
             existing.cancelledAt = new Date().toISOString();
             await r.set('order:' + oid, JSON.stringify(existing), { ex: 86400 });
-            await releaseCard(existing.assignedRequisiteId);
+            await releaseCard(existing.assignedRequisiteId, existing.orderId);
             continue;
           }
           if (existing.status === 'pending' || existing.status === 'approved') {
@@ -312,7 +312,7 @@ async function handleCancelDraft(req, res) {
     order.status = 'cancelled';
     order.cancelledAt = new Date().toISOString();
     await r.set('order:' + orderId, JSON.stringify(order), { ex: ORDER_TTL });
-    await releaseCard(order.assignedRequisiteId);
+    await releaseCard(order.assignedRequisiteId, order.orderId);
 
     return res.status(200).json({ ok: true });
   } catch (err) {

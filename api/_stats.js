@@ -38,7 +38,7 @@ async function recordApproval(amountRub) {
   stats.totalApprovedRub = (stats.totalApprovedRub || 0) + amountRub;
   stats.approvedOrdersCount = (stats.approvedOrdersCount || 0) + 1;
 
-  await r.set(key, JSON.stringify(stats));
+  await r.set(key, JSON.stringify(stats), { ex: 7776000 });
 
   // Add date to index set for history queries
   await r.sadd(DATES_INDEX_KEY, dateStr);

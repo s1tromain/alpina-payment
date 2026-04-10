@@ -90,6 +90,24 @@ module.exports = async (req, res) => {
     } catch (err) {
       console.error('Orphaned card cleanup error:', err.message);
     }
+
+    // Cleanup old stats entries (older than 90 days)
+    try {
+      const statsDates = await r.smembers('stats:dates');
+      if (statsDates && statsDates.length > 0) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 90);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        for (const d of statsDates) {
+          if (d < cutoffStr) {
+            await r.srem('stats:dates', d);
+            await r.del('stats:daily:' + d);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Stats cleanup error:', err.message);
+    }
   }
 
   // DB-based expiration only runs when Supabase is configured.

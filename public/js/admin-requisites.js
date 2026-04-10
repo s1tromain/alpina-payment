@@ -105,7 +105,22 @@
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
-    return fetch(url, opts).then(function(r) { return r.json(); });
+    return fetch(url, opts).then(function(resp) {
+      if (resp.status === 401) {
+        clearSession();
+        password = '';
+        authBox.style.display = '';
+        mainPanel.style.display = 'none';
+        authError.textContent = '\u0421\u0435\u0441\u0441\u0438\u044F \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u0412\u043E\u0439\u0434\u0438\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.';
+        authError.style.display = 'block';
+        return { ok: false, error: 'unauthorized' };
+      }
+      if (resp.status === 429) {
+        showStatus('\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432. \u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435.', true);
+        return { ok: false, error: 'rate_limited' };
+      }
+      return resp.json();
+    });
   }
 
   // ===== Modal open/close =====
@@ -262,9 +277,12 @@
   }
 
   // ===== Table action buttons =====
+  var deleteConfirmId = null;
+  var deleteConfirmTimer = null;
+
   cardsBody.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-action]');
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
 
     var action = btn.getAttribute('data-action');
     var id = btn.getAttribute('data-id');
@@ -281,31 +299,46 @@
     }
 
     if (action === 'toggle') {
+      btn.disabled = true;
       var newActive = btn.getAttribute('data-active') === 'true';
       apiCall('PUT', '', { id: id, isActive: newActive }).then(function(data) {
         if (data.ok) {
           showStatus(newActive ? '\u041A\u0430\u0440\u0442\u0430 \u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u043D\u0430' : '\u041A\u0430\u0440\u0442\u0430 \u0434\u0435\u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u043D\u0430');
           loadCards();
         } else {
+          btn.disabled = false;
           if (data.reason === 'busy_disable') {
             showStatus('\u041D\u0435\u043B\u044C\u0437\u044F \u0434\u0435\u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u0442\u044C: \u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u043D\u044F\u0442\u0430 \u0437\u0430\u044F\u0432\u043A\u043E\u0439', true);
           } else {
             showStatus(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430', true);
           }
         }
-      }).catch(function() { showStatus('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F', true); });
+      }).catch(function() { btn.disabled = false; showStatus('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F', true); });
     }
 
     if (action === 'delete') {
-      if (!confirm('\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u044D\u0442\u0443 \u043A\u0430\u0440\u0442\u0443?')) return;
+      if (deleteConfirmId !== id) {
+        deleteConfirmId = id;
+        btn.textContent = '\u0422\u043E\u0447\u043D\u043E?';
+        if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
+        deleteConfirmTimer = setTimeout(function() {
+          deleteConfirmId = null;
+          btn.textContent = '\u0423\u0434\u0430\u043B\u0438\u0442\u044C';
+        }, 3000);
+        return;
+      }
+      deleteConfirmId = null;
+      if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
+      btn.disabled = true;
       apiCall('DELETE', '?id=' + id).then(function(data) {
         if (data.ok) {
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u0443\u0434\u0430\u043B\u0435\u043D\u0430');
           loadCards();
         } else {
+          btn.disabled = false;
           showStatus(data.error || '\u041E\u0448\u0438\u0431\u043A\u0430', true);
         }
-      }).catch(function() { showStatus('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F', true); });
+      }).catch(function() { btn.disabled = false; showStatus('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F', true); });
     }
   });
 
@@ -337,9 +370,11 @@
     }
 
     modalError.style.display = 'none';
+    modalSave.disabled = true;
 
     if (editingId) {
       apiCall('PUT', '', { id: editingId, cardNumber: cn, bankName: bn, isActive: modalIsActive.checked }).then(function(data) {
+        modalSave.disabled = false;
         if (data.ok) {
           closeModal();
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430');
@@ -353,11 +388,13 @@
           modalError.style.display = 'block';
         }
       }).catch(function() {
+        modalSave.disabled = false;
         modalError.textContent = '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F';
         modalError.style.display = 'block';
       });
     } else {
       apiCall('POST', '', { cardNumber: cn, bankName: bn, isActive: modalIsActive.checked }).then(function(data) {
+        modalSave.disabled = false;
         if (data.ok) {
           closeModal();
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430');
@@ -367,6 +404,7 @@
           modalError.style.display = 'block';
         }
       }).catch(function() {
+        modalSave.disabled = false;
         modalError.textContent = '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F';
         modalError.style.display = 'block';
       });
@@ -387,22 +425,36 @@
     loadStats();
   });
 
+  // ===== Auto-refresh every 30s =====
+  setInterval(function() {
+    if (mainPanel.style.display !== 'none' && !requisiteModal.classList.contains('open')) {
+      loadCards();
+      loadStats();
+    }
+  }, 30000);
+
   // ===== Auto-login from saved session =====
   var savedPwd = loadSession();
   if (savedPwd) {
     password = savedPwd;
+    authBox.style.display = 'none';
+    mainPanel.style.display = 'block';
+    cardsBody.innerHTML = '<tr><td colspan="6" class="empty-msg">\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026</td></tr>';
     apiCall('GET').then(function(data) {
       if (data.ok) {
-        showMainPanel();
         renderCards(data.requisites);
         loadStats();
       } else {
         clearSession();
         password = '';
+        authBox.style.display = '';
+        mainPanel.style.display = 'none';
       }
     }).catch(function() {
       clearSession();
       password = '';
+      authBox.style.display = '';
+      mainPanel.style.display = 'none';
     });
   }
 
