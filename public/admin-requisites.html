@@ -140,28 +140,19 @@
     .td-actions { white-space: nowrap; }
     .td-actions .btn { margin-right: 4px; margin-bottom: 4px; }
 
-    /* Modal — fullscreen */
-    .modal-overlay {
+    /* Fullscreen modal */
+    #requisiteModal {
+      display: none;
       position: fixed;
       top: 0; left: 0;
       width: 100%; height: 100%;
       background: var(--bg);
-      z-index: 1100;
-      opacity: 0; visibility: hidden;
-      transition: opacity .3s;
-    }
-    .modal-overlay.active { opacity: 1; visibility: visible; }
-
-    .modal {
-      background: var(--bg);
-      border: none;
-      border-radius: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
+      z-index: 9999;
       flex-direction: column;
       overflow-y: auto;
+    }
+    #requisiteModal.open {
+      display: flex;
     }
     .modal-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -182,10 +173,9 @@
       max-width: 520px; width: 100%; margin: 0 auto;
       padding-top: 32px;
     }
-    .modal h3 { font-size: 1rem; margin-bottom: 16px; }
-    .modal .field { margin-bottom: 24px; }
-    .modal .field label { display: block; font-size: .85rem; color: var(--text2); margin-bottom: 8px; font-weight: 600; }
-    .modal .field input {
+    .modal-body .field { margin-bottom: 24px; }
+    .modal-body .field label { display: block; font-size: .85rem; color: var(--text2); margin-bottom: 8px; font-weight: 600; }
+    .modal-body .field input {
       width: 100%;
       padding: 16px 18px; font-size: 1.05rem;
       border: 1px solid var(--border);
@@ -195,7 +185,7 @@
       outline: none;
       transition: border-color .2s;
     }
-    .modal .field input:focus { border-color: var(--teal-mid); box-shadow: 0 0 0 3px rgba(47,227,224,.1); }
+    .modal-body .field input:focus { border-color: var(--teal-mid); box-shadow: 0 0 0 3px rgba(47,227,224,.1); }
     .modal-footer {
       padding: 20px;
       border-top: 1px solid var(--border);
@@ -322,7 +312,7 @@
   <span class="topbar-title">ALPINA PAY-OUT — Admin</span>
 </div>
 
-<div class="container">
+<div class="container" id="mainContainer">
   <h1>Управление реквизитами</h1>
 
   <div class="auth-box" id="authBox">
@@ -377,7 +367,7 @@
               <th>Банк</th>
               <th>Активна</th>
               <th>Статус</th>
-              <th>ID заявки</th>
+              <th>Заявка</th>
               <th>Действия</th>
             </tr>
           </thead>
@@ -409,37 +399,35 @@
   </div>
 </div>
 
-<!-- Add/Edit Modal (fullscreen) -->
-<div class="modal-overlay" id="cardModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="modalTitle">Добавить карту</h3>
-      <button class="modal-close-btn" id="modalCloseX">&times;</button>
+<!-- Fullscreen Add/Edit Modal -->
+<div id="requisiteModal">
+  <div class="modal-header">
+    <h3 id="modalTitle">Добавить карту</h3>
+    <button class="modal-close-btn" id="modalCloseX">&times;</button>
+  </div>
+  <div class="modal-body">
+    <div class="field">
+      <label>Номер карты</label>
+      <input type="text" id="modalCardNumber" placeholder="0000 0000 0000 0000" maxlength="30" autocomplete="off" inputmode="numeric">
     </div>
-    <div class="modal-body">
-      <div class="field">
-        <label>Номер карты</label>
-        <input type="text" id="modalCardNumber" placeholder="0000 0000 0000 0000" maxlength="30" autocomplete="off" inputmode="numeric">
-      </div>
-      <div class="field">
-        <label>Название банка</label>
-        <input type="text" id="modalBankName" placeholder="Например: Anor Bank" maxlength="100" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Статус</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="modalIsActive" checked>
-          <span class="toggle-slider"></span>
-          <span class="toggle-label" id="modalIsActiveLabel">Активна</span>
-        </label>
-      </div>
-      <div class="error-msg" id="modalError" style="display:none"></div>
+    <div class="field">
+      <label>Название банка</label>
+      <input type="text" id="modalBankName" placeholder="Например: Anor Bank" maxlength="100" autocomplete="off">
     </div>
-    <div class="modal-footer">
-      <div class="modal-btns">
-        <button class="btn btn-secondary" id="modalCancel">Отмена</button>
-        <button class="btn btn-primary" id="modalSave">Сохранить</button>
-      </div>
+    <div class="field">
+      <label>Статус</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="modalIsActive" checked>
+        <span class="toggle-slider"></span>
+        <span class="toggle-label" id="modalIsActiveLabel">Активна</span>
+      </label>
+    </div>
+    <div class="error-msg" id="modalError" style="display:none"></div>
+  </div>
+  <div class="modal-footer">
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="modalCancel">Отмена</button>
+      <button class="btn btn-primary" id="modalSave">Сохранить</button>
     </div>
   </div>
 </div>
