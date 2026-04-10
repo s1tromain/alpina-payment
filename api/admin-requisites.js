@@ -120,6 +120,20 @@ module.exports = async (req, res) => {
 
       await repairRequisitesState();
       const all = await getAllRequisites();
+
+      // Enrich requisites with order seqId for display
+      for (const req of all) {
+        if (req.currentOrderId && r) {
+          try {
+            const orderRaw = await r.get('order:' + req.currentOrderId);
+            if (orderRaw) {
+              const order = typeof orderRaw === 'string' ? JSON.parse(orderRaw) : orderRaw;
+              req.currentOrderSeqId = order.seqId || null;
+            }
+          } catch (_) {}
+        }
+      }
+
       return res.status(200).json({ ok: true, requisites: all });
     }
 

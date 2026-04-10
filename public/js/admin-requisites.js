@@ -238,7 +238,10 @@
       var statusBadge = c.status === 'busy'
         ? '<span class="badge badge-busy">\u0417\u0430\u043D\u044F\u0442\u0430</span>'
         : '<span class="badge badge-free">\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u0430</span>';
-      var orderCell = c.currentOrderId ? escHtml(c.currentOrderId) : '\u2014';
+      var orderCell = '\u2014';
+      if (c.currentOrderId) {
+        orderCell = c.currentOrderSeqId ? '#' + c.currentOrderSeqId : escHtml(c.currentOrderId);
+      }
       var toggleLabel = c.isActive ? '\u0412\u044B\u043A\u043B' : '\u0412\u043A\u043B';
       var toggleClass = c.isActive ? 'btn-warn' : 'btn-ok';
 
