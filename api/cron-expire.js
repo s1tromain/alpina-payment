@@ -7,6 +7,9 @@ module.exports = async (req, res) => {
   const { userBot } = require('./_telegram');
   const { releaseCardByOrder, repairRequisitesState } = require('./_requisites');
 
+  console.log('CRON: starting expire scan');
+  const cronStart = Date.now();
+
   const r = getRedis();
   let redisExpired = 0;
   let orphanedCardsReleased = 0;
@@ -28,11 +31,31 @@ module.exports = async (req, res) => {
       } while (cursor !== 0);
 
       const now = new Date();
+      let scannedOrders = 0;
       for (const key of allKeys) {
+        // Skip non-order keys that match the pattern
         if (key === 'order:seq') continue;
-        const raw = await r.get(key);
+        if (key.startsWith('order:submit:')) continue;
+        if (key.startsWith('order:processing:')) continue;
+
+        let raw;
+        try {
+          raw = await r.get(key);
+        } catch (readErr) {
+          console.error('CRON: failed to read key ' + key + ':', readErr.message);
+          continue;
+        }
         if (!raw) continue;
-        const order = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+        let order;
+        try {
+          order = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (parseErr) {
+          console.error('CRON: failed to parse key ' + key + ':', parseErr.message);
+          continue;
+        }
+        if (!order || !order.status) continue;
+        scannedOrders++;
 
         let shouldExpire = false;
         let notifyMessage = null;
@@ -108,6 +131,8 @@ module.exports = async (req, res) => {
     } catch (err) {
       console.error('Stats cleanup error:', err.message);
     }
+
+    console.log('CRON: completed in ' + (Date.now() - cronStart) + 'ms — expired: ' + redisExpired + ', orphaned cards released: ' + orphanedCardsReleased);
   }
 
   // DB-based expiration only runs when Supabase is configured.

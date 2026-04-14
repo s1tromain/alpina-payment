@@ -99,7 +99,8 @@
     var url = API + (params || '');
     var opts = {
       method: method,
-      headers: { 'X-Admin-Password': password }
+      headers: { 'X-Admin-Password': password },
+      cache: 'no-store'
     };
     if (body) {
       opts.headers['Content-Type'] = 'application/json';
@@ -382,6 +383,8 @@
         } else {
           if (data.reason === 'busy_edit') {
             modalError.textContent = '\u041D\u0435\u043B\u044C\u0437\u044F \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C: \u043A\u0430\u0440\u0442\u0430 \u0437\u0430\u043D\u044F\u0442\u0430 \u0437\u0430\u044F\u0432\u043A\u043E\u0439';
+          } else if (data.reason === 'duplicate_card') {
+            modalError.textContent = '\u041A\u0430\u0440\u0442\u0430 \u0441 \u0442\u0430\u043A\u0438\u043C \u043D\u043E\u043C\u0435\u0440\u043E\u043C \u0443\u0436\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u0435\u0442';
           } else {
             modalError.textContent = data.error || '\u041E\u0448\u0438\u0431\u043A\u0430';
           }
@@ -400,7 +403,11 @@
           showStatus('\u041A\u0430\u0440\u0442\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430');
           loadCards();
         } else {
-          modalError.textContent = data.error || '\u041E\u0448\u0438\u0431\u043A\u0430';
+          if (data.reason === 'duplicate_card') {
+            modalError.textContent = '\u041A\u0430\u0440\u0442\u0430 \u0441 \u0442\u0430\u043A\u0438\u043C \u043D\u043E\u043C\u0435\u0440\u043E\u043C \u0443\u0436\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u0435\u0442';
+          } else {
+            modalError.textContent = data.error || '\u041E\u0448\u0438\u0431\u043A\u0430';
+          }
           modalError.style.display = 'block';
         }
       }).catch(function() {

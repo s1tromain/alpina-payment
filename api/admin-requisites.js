@@ -6,7 +6,8 @@ const {
   updateRequisite,
   deleteRequisite,
   seedTestCards,
-  repairRequisitesState
+  repairRequisitesState,
+  deduplicateRequisites
 } = require('./_requisites');
 const { getDailyStats, getStatsHistory, DAILY_LIMIT_RUB } = require('./_stats');
 
@@ -39,6 +40,8 @@ module.exports = async (req, res) => {
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Password');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -89,6 +92,11 @@ module.exports = async (req, res) => {
         return res.status(200).json({ ok: true, ...result });
       }
 
+      if (action === 'dedup') {
+        const result = await deduplicateRequisites();
+        return res.status(200).json({ ok: true, ...result });
+      }
+
       if (action === 'stats') {
         const today = await getDailyStats();
         return res.status(200).json({
@@ -120,6 +128,7 @@ module.exports = async (req, res) => {
 
       await repairRequisitesState();
       const all = await getAllRequisites();
+      console.log('ADMIN FETCH: returning ' + all.length + ' requisites');
 
       // Enrich requisites with order seqId for display
       for (const req of all) {
@@ -129,8 +138,13 @@ module.exports = async (req, res) => {
             if (orderRaw) {
               const order = typeof orderRaw === 'string' ? JSON.parse(orderRaw) : orderRaw;
               req.currentOrderSeqId = order.seqId || null;
+            } else {
+              // Order disappeared but card still busy — will be fixed by repair on next call
+              console.warn('ADMIN FETCH: card ' + req.id + ' references missing order ' + req.currentOrderId);
             }
-          } catch (_) {}
+          } catch (enrichErr) {
+            console.error('ADMIN FETCH: enrichment error for card ' + req.id + ':', enrichErr.message);
+          }
         }
       }
 
@@ -154,6 +168,11 @@ module.exports = async (req, res) => {
       }
 
       const requisite = await createRequisite({ cardNumber, bankName });
+
+      if (requisite.error) {
+        return res.status(409).json({ ok: false, error: requisite.message, reason: requisite.error });
+      }
+
       return res.status(200).json({ ok: true, requisite });
     }
 
@@ -176,7 +195,8 @@ module.exports = async (req, res) => {
       }
 
       if (result.error) {
-        return res.status(409).json({ ok: false, error: result.message, reason: result.error });
+        const statusCode = result.error === 'duplicate_card' ? 409 : 409;
+        return res.status(statusCode).json({ ok: false, error: result.message, reason: result.error });
       }
 
       return res.status(200).json({ ok: true, requisite: result });
