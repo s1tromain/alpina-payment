@@ -4,13 +4,12 @@ let supabase;
 
 function getDb() {
   if (!supabase) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-      throw new Error('Database not configured');
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      throw new Error('Supabase not configured');
     }
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
+    supabase = createClient(url, key);
   }
   return supabase;
 }

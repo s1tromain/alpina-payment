@@ -4,6 +4,7 @@ const { esc, modBot, userBot } = require('./_telegram');
 const { checkAntiSpam, recordSubmission } = require('./_ratelimit');
 const { validateInitData } = require('./_auth');
 const { releaseCardByOrder } = require('./_requisites');
+const { getDb } = require('./_db');
 
 const CHANNEL_ID = process.env.CHANNEL_ID;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png'];
@@ -282,6 +283,43 @@ module.exports = async (req, res) => {
       amount: String(order.receiveAmount),
       currency: order.receiveCurrency
     });
+
+    // Save to Supabase history (fire-and-forget — never breaks Redis flow)
+    try {
+      const db = getDb();
+      await db.from('users').upsert(
+        {
+          telegram_id: parseInt(order.telegramId, 10),
+          username: order.telegramUsername || null,
+          first_name: order.telegramFirstName || null,
+        },
+        { onConflict: 'telegram_id' }
+      );
+      let receiptFileId = null;
+      if (channelResult && channelResult.ok && channelResult.result && Array.isArray(channelResult.result.photo)) {
+        const photos = channelResult.result.photo;
+        receiptFileId = photos[photos.length - 1].file_id;
+      }
+      await db.from('orders').insert({
+        order_id: order.orderId,
+        telegram_id: parseInt(order.telegramId, 10),
+        receive_currency: order.receiveCurrency,
+        receive_amount: order.receiveAmount,
+        pay_currency: order.payCurrency,
+        pay_amount: order.payAmount,
+        base_rate: order.baseRate,
+        markup_percent: order.markupPercent,
+        final_rate: order.finalRate,
+        payout_details: order.payoutDetails,
+        receipt_file_id: receiptFileId,
+        status: 'pending',
+        telegram_channel_message_id: channelMessageId,
+        created_at: order.createdAt,
+        expires_at: order.expiresAt,
+      });
+    } catch (dbErr) {
+      console.error('Supabase insert error (non-fatal):', dbErr.message);
+    }
 
     if (order.telegramId) {
       try {
