@@ -730,7 +730,8 @@
     console.log('Avatar URL:', tgInitUser && tgInitUser.photo_url);
 
     if (tgInitUser && tgInitUser.photo_url && tgInitUser.photo_url.startsWith('http')) {
-      setAvatarImage(tgInitUser.photo_url, generateAvatar(tgInitUser));
+      var proxiedUrl = '/api/avatar?url=' + encodeURIComponent(tgInitUser.photo_url);
+      setAvatarImage(proxiedUrl, generateAvatar(tgInitUser));
     } else {
       setAvatarImage(generateAvatar(tgInitUser));
     }
