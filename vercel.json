@@ -6,7 +6,7 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors https://web.telegram.org https://t.me; base-uri 'self'; form-action 'self'; connect-src 'self'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://t.me https://*.t.me https://*.telegram.org https://*.cdn-telegram.org; frame-ancestors https://web.telegram.org https://t.me; base-uri 'self'; form-action 'self'; connect-src 'self'" }
       ]
     }
   ]

@@ -15,28 +15,38 @@
 
   var tg = window.Telegram && window.Telegram.WebApp;
   var tgInitData = tg ? tg.initData : '';
+  var tgInitUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
 
   if (tg) {
     tg.ready();
     tg.expand();
   }
 
-  /* ========== DOM Elements ========== */
+  /* ========== DOM: Screens & Nav ========== */
 
   var screens = {
     offer: document.getElementById('screenOffer'),
-    exchange: document.getElementById('screenExchange'),
+    home: document.getElementById('screenHome'),
+    history: document.getElementById('screenHistory'),
+    profile: document.getElementById('screenProfile'),
     payment: document.getElementById('screenPayment')
   };
 
-  var offerAcceptBtn = document.getElementById('offerAcceptBtn');
+  var bottomNav = document.getElementById('bottomNav');
+  var navItems = bottomNav.querySelectorAll('.nav-item');
 
+  /* ========== DOM: Home (Exchange) ========== */
+
+  var offerAcceptBtn = document.getElementById('offerAcceptBtn');
   var amountRubInput = document.getElementById('amountRub');
   var payoutDetailsInput = document.getElementById('payoutDetails');
   var rateValueEl = document.getElementById('rateValue');
   var receiveTotalEl = document.getElementById('receiveTotal');
   var rateUpdateEl = document.getElementById('rateUpdate');
   var nextBtn = document.getElementById('nextBtn');
+  var quickAmountsEl = document.getElementById('quickAmounts');
+
+  /* ========== DOM: Payment ========== */
 
   var payOrderIdEl = document.getElementById('payOrderId');
   var payReceiveAmountEl = document.getElementById('payReceiveAmount');
@@ -56,11 +66,33 @@
   var submitBtn = document.getElementById('submitBtn');
   var backBtn = document.getElementById('backBtn');
 
+  /* ========== DOM: Modal ========== */
+
   var modalOverlay = document.getElementById('modalOverlay');
   var modalCloseBtn = document.getElementById('modalCloseBtn');
   var modalOrderIdEl = document.getElementById('modalOrderId');
   var modalReceiveEl = document.getElementById('modalReceive');
   var modalPayEl = document.getElementById('modalPay');
+
+  /* ========== DOM: History ========== */
+
+  var historyList = document.getElementById('historyList');
+  var historyLoading = document.getElementById('historyLoading');
+  var historyEmpty = document.getElementById('historyEmpty');
+
+  /* ========== DOM: Profile ========== */
+
+  var profileAvatar = document.getElementById('profileAvatar');
+  var profileInitials = document.getElementById('profileInitials');
+  var profileName = document.getElementById('profileName');
+  var profileUsername = document.getElementById('profileUsername');
+  var profileId = document.getElementById('profileId');
+
+  var statTotalRub = document.getElementById('statTotalRub');
+  var statTotalUsdt = document.getElementById('statTotalUsdt');
+  var statTotalOrders = document.getElementById('statTotalOrders');
+  var statPendingCount = document.getElementById('statPendingCount');
+  var statRejectedCount = document.getElementById('statRejectedCount');
 
   /* ========== State ========== */
 
@@ -68,7 +100,10 @@
   var rateInterval = null;
   var currentOrder = null;
   var timerInterval = null;
-  var currentScreen = 'exchange';
+  var currentScreen = 'home';
+  var historyLoadedAt = 0;
+  var profileLoadedAt = 0;
+  var CACHE_MS = 20000;
 
   /* ========== Navigation ========== */
 
@@ -76,16 +111,43 @@
     currentScreen = name;
 
     Object.keys(screens).forEach(function (key) {
-      screens[key].classList.remove('active');
+      if (screens[key]) screens[key].classList.remove('active');
     });
     if (screens[name]) screens[name].classList.add('active');
 
-    if (name === 'exchange') {
+    // Bottom nav visible only on main tabs
+    var navVisible = (name === 'home' || name === 'history' || name === 'profile');
+    bottomNav.classList.toggle('visible', navVisible);
+    document.body.classList.toggle('has-nav', navVisible);
+
+    // Update nav active state
+    navItems.forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-nav') === name);
+    });
+
+    // Rate updates only on home
+    if (name === 'home') {
       startRateUpdates();
     } else {
       stopRateUpdates();
     }
+
+    // Lazy-load per screen
+    if (name === 'history') {
+      loadHistory();
+    } else if (name === 'profile') {
+      loadProfile();
+    }
+
+    window.scrollTo(0, 0);
   }
+
+  navItems.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-nav');
+      if (target && target !== currentScreen) showScreen(target);
+    });
+  });
 
   /* ========== Offer / Agreement ========== */
 
@@ -102,7 +164,7 @@
   if (offerAcceptBtn) {
     offerAcceptBtn.addEventListener('click', function () {
       acceptOffer();
-      showScreen('exchange');
+      showScreen('home');
     });
   }
 
@@ -115,9 +177,8 @@
       timerBadgeEl.classList.remove('warning', 'expired');
       timerTextEl.textContent = '30:00';
       submitBtn.disabled = false;
-      submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
+      submitBtn.textContent = 'Отправить заявку';
 
-      // Cancel draft order to release card
       if (currentOrder && currentOrder.orderId) {
         var cancelXhr = new XMLHttpRequest();
         cancelXhr.open('DELETE', '/api/create-order');
@@ -129,7 +190,7 @@
         currentOrder = null;
       }
 
-      showScreen('exchange');
+      showScreen('home');
       backBusy = false;
     }
   });
@@ -144,10 +205,10 @@
         var data = JSON.parse(xhr.responseText);
         if (data.ok && data.finalRate) {
           currentRate = data.finalRate;
-          rateValueEl.textContent = data.finalRate.toFixed(2) + ' \u20BD';
+          rateValueEl.textContent = data.finalRate.toFixed(2) + ' ₽';
           updateReceiveTotal();
           var now = new Date();
-          rateUpdateEl.textContent = '\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ' + now.toLocaleTimeString('ru-RU');
+          rateUpdateEl.textContent = 'Обновлено: ' + now.toLocaleTimeString('ru-RU');
         }
       } catch (e) {}
     };
@@ -161,7 +222,7 @@
       var usdt = (val / currentRate).toFixed(2);
       receiveTotalEl.textContent = usdt + ' USDT';
     } else {
-      receiveTotalEl.textContent = '\u2014';
+      receiveTotalEl.textContent = '—';
     }
   }
 
@@ -186,10 +247,31 @@
     amountRubInput.value = v;
     updateReceiveTotal();
     amountRubInput.closest('.field').classList.remove('error');
+    markQuickAmount();
   });
 
   payoutDetailsInput.addEventListener('input', function () {
     payoutDetailsInput.closest('.field').classList.remove('error');
+  });
+
+  /* ========== Quick Amounts ========== */
+
+  function markQuickAmount() {
+    var val = parseFloat(amountRubInput.value);
+    quickAmountsEl.querySelectorAll('.quick-amount').forEach(function (btn) {
+      var a = parseFloat(btn.getAttribute('data-amount'));
+      btn.classList.toggle('active', a === val);
+    });
+  }
+
+  quickAmountsEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('.quick-amount');
+    if (!btn) return;
+    var amount = btn.getAttribute('data-amount');
+    amountRubInput.value = amount;
+    amountRubInput.closest('.field').classList.remove('error');
+    updateReceiveTotal();
+    markQuickAmount();
   });
 
   /* ========== Create Order (Step 1) ========== */
@@ -203,7 +285,7 @@
       valid = false;
     } else if (amount < 1000) {
       amountRubInput.closest('.field').classList.add('error');
-      showAlert('\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0443\u043C\u043C\u0430 \u043F\u043E\u043A\u0443\u043F\u043A\u0438 \u2014 1000 RUB');
+      showAlert('Минимальная сумма покупки — 1000 RUB');
       return;
     }
 
@@ -214,14 +296,14 @@
     }
 
     if (!currentRate) {
-      showAlert('\u041A\u0443\u0440\u0441 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.');
+      showAlert('Курс не загружен. Попробуйте позже.');
       return;
     }
 
     if (!valid) return;
 
     nextBtn.disabled = true;
-    nextBtn.textContent = '\u0421\u043E\u0437\u0434\u0430\u043D\u0438\u0435...';
+    nextBtn.textContent = 'Создание...';
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/create-order');
@@ -235,18 +317,18 @@
         if (!data.ok) {
           showAlert(getErrorMessage(data));
           nextBtn.disabled = false;
-          nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
+          nextBtn.textContent = 'Купить USDT';
           return;
         }
 
         currentOrder = data;
 
         payOrderIdEl.textContent = data.seqId ? '#' + data.seqId : data.orderId;
-        payAmountRubEl.textContent = data.payAmount.toFixed(2) + ' \u20BD';
+        payAmountRubEl.textContent = data.payAmount.toFixed(2) + ' ₽';
         payReceiveAmountEl.textContent = data.receiveAmount + ' ' + data.receiveCurrency;
-        payRateEl.textContent = data.finalRate.toFixed(2) + ' \u20BD';
-        payCardNumberEl.textContent = data.cardNumber || '\u2014';
-        payBankNameEl.textContent = data.bankName || '\u2014';
+        payRateEl.textContent = data.finalRate.toFixed(2) + ' ₽';
+        payCardNumberEl.textContent = data.cardNumber || '—';
+        payBankNameEl.textContent = data.bankName || '—';
 
         timerBadgeEl.classList.remove('warning', 'expired');
         startTimer(new Date(data.expiresAt));
@@ -257,11 +339,10 @@
         filePreview.classList.remove('active');
         uploadZone.classList.remove('error');
         submitBtn.disabled = false;
-        submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
+        submitBtn.textContent = 'Отправить заявку';
 
         showScreen('payment');
 
-        // Confirm draft order — tells backend the user saw the payment page
         var confirmXhr = new XMLHttpRequest();
         confirmXhr.open('PATCH', '/api/create-order');
         confirmXhr.setRequestHeader('Content-Type', 'application/json');
@@ -271,17 +352,17 @@
         confirmXhr.send(JSON.stringify({ orderId: data.orderId }));
 
         nextBtn.disabled = false;
-        nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
+        nextBtn.textContent = 'Купить USDT';
       } catch (e) {
-        showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430', { showSupport: true });
+        showAlert('Ошибка ответа сервера', { showSupport: true });
         nextBtn.disabled = false;
-        nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
+        nextBtn.textContent = 'Купить USDT';
       }
     };
     xhr.onerror = function () {
-      showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435.', { showSupport: true });
+      showAlert('Ошибка сети. Проверьте подключение.', { showSupport: true });
       nextBtn.disabled = false;
-      nextBtn.textContent = '\u0414\u0430\u043B\u0435\u0435';
+      nextBtn.textContent = 'Купить USDT';
     };
     xhr.send(JSON.stringify({ amountRub: amount, payoutDetails: details }));
   });
@@ -300,11 +381,11 @@
         timerTextEl.textContent = '00:00';
         timerBadgeEl.classList.add('expired');
         submitBtn.disabled = true;
-        submitBtn.textContent = '\u0412\u0440\u0435\u043C\u044F \u0438\u0441\u0442\u0435\u043A\u043B\u043E';
+        submitBtn.textContent = 'Время истекло';
 
         setTimeout(function () {
-          showScreen('exchange');
-          showAlert('\u0412\u0440\u0435\u043C\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u0438\u0441\u0442\u0435\u043A\u043B\u043E. \u0421\u043E\u0437\u0434\u0430\u0439\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443.', { showSupport: true });
+          showScreen('home');
+          showAlert('Время оплаты истекло. Создайте новую заявку.', { showSupport: true });
         }, 2000);
         return;
       }
@@ -333,11 +414,11 @@
   function handleFile(file) {
     if (!file) return;
     if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
-      showAlert('\u0414\u043E\u043F\u0443\u0441\u0442\u0438\u043C\u044B\u0435 \u0444\u043E\u0440\u043C\u0430\u0442\u044B: JPG, PNG');
+      showAlert('Допустимые форматы: JPG, PNG');
       return;
     }
     if (file.size > MAX_FILE_SIZE) {
-      showAlert('\u0424\u0430\u0439\u043B \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0439. \u041C\u0430\u043A\u0441\u0438\u043C\u0443\u043C 4.5 \u041C\u0411.');
+      showAlert('Файл слишком большой. Максимум 4.5 МБ.');
       return;
     }
     var reader = new FileReader();
@@ -384,12 +465,12 @@
 
     if (!fileInput.files.length) {
       uploadZone.classList.add('error');
-      showAlert('\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u0435 \u0447\u0435\u043A \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u0437\u0430\u044F\u0432\u043A\u0438');
+      showAlert('Прикрепите чек для отправки заявки');
       return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u043A\u0430...';
+    submitBtn.textContent = 'Отправка...';
 
     var fd = new FormData();
     fd.append('orderId', currentOrder.orderId);
@@ -406,14 +487,14 @@
         if (!data.ok) {
           showAlert(getErrorMessage(data));
           submitBtn.disabled = false;
-          submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
+          submitBtn.textContent = 'Отправить заявку';
           return;
         }
 
         if (timerInterval) clearInterval(timerInterval);
 
         modalOrderIdEl.textContent = currentOrder.seqId ? '#' + currentOrder.seqId : currentOrder.orderId;
-        modalPayEl.textContent = currentOrder.payAmount.toFixed(2) + ' \u20BD';
+        modalPayEl.textContent = currentOrder.payAmount.toFixed(2) + ' ₽';
         modalReceiveEl.textContent = currentOrder.receiveAmount + ' ' + currentOrder.receiveCurrency;
 
         var svg = document.querySelector('.modal-check svg');
@@ -428,18 +509,24 @@
         previewImg.src = '';
         fileNameEl.textContent = '';
         filePreview.classList.remove('active');
+        markQuickAmount();
+
+        // Invalidate caches — user's history & stats just changed
+        historyLoadedAt = 0;
+        profileLoadedAt = 0;
+
         currentOrder = null;
 
       } catch (e) {
-        showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430', { showSupport: true });
+        showAlert('Ошибка ответа сервера', { showSupport: true });
         submitBtn.disabled = false;
-        submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
+        submitBtn.textContent = 'Отправить заявку';
       }
     };
     xhr.onerror = function () {
-      showAlert('\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0442\u0438. \u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435.', { showSupport: true });
+      showAlert('Ошибка сети. Проверьте подключение.', { showSupport: true });
       submitBtn.disabled = false;
-      submitBtn.textContent = '\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443';
+      submitBtn.textContent = 'Отправить заявку';
     };
     xhr.send(fd);
   });
@@ -448,7 +535,7 @@
 
   function closeModal() {
     modalOverlay.classList.remove('active');
-    showScreen('exchange');
+    showScreen('history');
   }
 
   modalCloseBtn.addEventListener('click', closeModal);
@@ -457,26 +544,240 @@
     if (e.target === modalOverlay) closeModal();
   });
 
+  /* ========== History ========== */
+
+  var statusMeta = {
+    pending: { label: 'На проверке', cls: 'st-pending' },
+    approved: { label: 'Выполнена', cls: 'st-approved' },
+    rejected: { label: 'Отклонена', cls: 'st-rejected' },
+    expired: { label: 'Истекла', cls: 'st-expired' },
+    cancelled: { label: 'Отменена', cls: 'st-expired' }
+  };
+
+  function formatDate(iso) {
+    if (!iso) return '—';
+    try {
+      var d = new Date(iso);
+      return d.toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) { return '—'; }
+  }
+
+  function formatAmount(n) {
+    var v = Number(n);
+    if (!isFinite(v)) return '—';
+    return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function renderHistory(orders) {
+    if (!orders || !orders.length) {
+      historyList.innerHTML = '';
+      historyList.classList.remove('active');
+      historyEmpty.classList.add('active');
+      return;
+    }
+    historyEmpty.classList.remove('active');
+
+    var html = orders.map(function (o) {
+      var meta = statusMeta[o.status] || { label: o.status, cls: '' };
+      return '' +
+        '<div class="order-item">' +
+          '<div class="order-row order-row-top">' +
+            '<div class="order-date">' + formatDate(o.created_at) + '</div>' +
+            '<div class="order-status ' + meta.cls + '">' + meta.label + '</div>' +
+          '</div>' +
+          '<div class="order-row order-row-main">' +
+            '<div class="order-amount">' +
+              '<div class="order-amount-main">' + formatAmount(o.receive_amount) + ' ' + escapeHtml(o.receive_currency || 'USDT') + '</div>' +
+              '<div class="order-amount-sub">' + formatAmount(o.pay_amount) + ' ₽</div>' +
+            '</div>' +
+            '<div class="order-rate">' +
+              '<div class="order-rate-label">Курс</div>' +
+              '<div class="order-rate-value">' + formatAmount(o.final_rate) + ' ₽</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="order-row order-row-bottom">' +
+            '<span class="order-id">' + escapeHtml(o.order_id) + '</span>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+
+    historyList.innerHTML = html;
+    historyList.classList.add('active');
+  }
+
+  function loadHistory(force) {
+    var now = Date.now();
+    if (!force && historyLoadedAt && (now - historyLoadedAt) < CACHE_MS) {
+      return;
+    }
+
+    historyLoading.classList.add('active');
+    historyEmpty.classList.remove('active');
+    historyList.classList.remove('active');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/user/orders');
+    if (tgInitData) {
+      xhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+    }
+    xhr.onload = function () {
+      historyLoading.classList.remove('active');
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (data.ok) {
+          historyLoadedAt = Date.now();
+          renderHistory(data.orders);
+        } else {
+          historyList.innerHTML = '';
+          showAlert(data.error || 'Не удалось загрузить историю');
+        }
+      } catch (e) {
+        showAlert('Ошибка ответа сервера');
+      }
+    };
+    xhr.onerror = function () {
+      historyLoading.classList.remove('active');
+      showAlert('Ошибка сети. Проверьте подключение.');
+    };
+    xhr.send();
+  }
+
+  /* ========== Profile ========== */
+
+  function getInitials() {
+    if (!tgInitUser) return '?';
+    var base = (tgInitUser.first_name || tgInitUser.username || '?').trim();
+    if (!base) return '?';
+    return base.charAt(0).toUpperCase();
+  }
+
+  function applyProfileFromTg() {
+    var name = '—';
+    var uname = '—';
+    var idText = '';
+    if (tgInitUser) {
+      var parts = [];
+      if (tgInitUser.first_name) parts.push(tgInitUser.first_name);
+      if (tgInitUser.last_name) parts.push(tgInitUser.last_name);
+      name = parts.length ? parts.join(' ') : (tgInitUser.username || 'Пользователь');
+      uname = tgInitUser.username ? '@' + tgInitUser.username : '';
+      idText = tgInitUser.id ? 'ID ' + tgInitUser.id : '';
+    }
+    profileName.textContent = name;
+    profileUsername.textContent = uname;
+    profileId.textContent = idText;
+
+    profileInitials.textContent = getInitials();
+
+    if (tgInitUser && tgInitUser.photo_url) {
+      setAvatarImage(tgInitUser.photo_url);
+    }
+  }
+
+  function setAvatarImage(url) {
+    var existing = profileAvatar.querySelector('img');
+    if (existing) existing.remove();
+
+    var img = new Image();
+    img.alt = '';
+    img.onload = function () {
+      profileInitials.style.display = 'none';
+    };
+    img.onerror = function () {
+      img.remove();
+      profileInitials.style.display = '';
+    };
+    img.src = url;
+    profileAvatar.appendChild(img);
+  }
+
+  function applyStats(stats) {
+    if (!stats) return;
+    statTotalRub.textContent = formatAmount(stats.totalRub);
+    statTotalUsdt.textContent = formatAmount(stats.totalUsdt);
+    statTotalOrders.textContent = String(stats.totalOrders || 0);
+    statPendingCount.textContent = String(stats.pendingCount || 0);
+    statRejectedCount.textContent = String(stats.rejectedCount || 0);
+  }
+
+  function loadProfile(force) {
+    applyProfileFromTg();
+
+    var now = Date.now();
+    if (!force && profileLoadedAt && (now - profileLoadedAt) < CACHE_MS) {
+      return;
+    }
+
+    // Fetch canonical profile (server-validated) + stats in parallel
+    var profileXhr = new XMLHttpRequest();
+    profileXhr.open('GET', '/api/user/profile');
+    if (tgInitData) profileXhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+    profileXhr.onload = function () {
+      try {
+        var data = JSON.parse(profileXhr.responseText);
+        if (data.ok && data.profile) {
+          var p = data.profile;
+          var parts = [];
+          if (p.firstName) parts.push(p.firstName);
+          if (p.lastName) parts.push(p.lastName);
+          var name = parts.length ? parts.join(' ') : (p.username || 'Пользователь');
+          profileName.textContent = name;
+          profileUsername.textContent = p.username ? '@' + p.username : '';
+          profileId.textContent = p.telegramId ? 'ID ' + p.telegramId : '';
+          if (p.photoUrl) setAvatarImage(p.photoUrl);
+        }
+      } catch (e) {}
+    };
+    profileXhr.send();
+
+    var statsXhr = new XMLHttpRequest();
+    statsXhr.open('GET', '/api/user/stats');
+    if (tgInitData) statsXhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+    statsXhr.onload = function () {
+      try {
+        var data = JSON.parse(statsXhr.responseText);
+        if (data.ok && data.stats) {
+          applyStats(data.stats);
+          profileLoadedAt = Date.now();
+        } else {
+          applyStats({ totalRub: 0, totalUsdt: 0, totalOrders: 0, pendingCount: 0, rejectedCount: 0 });
+        }
+      } catch (e) {}
+    };
+    statsXhr.onerror = function () {};
+    statsXhr.send();
+  }
+
   /* ========== Helpers ========== */
 
   var reasonMessages = {
-    concurrent_request: '\u0417\u0430\u043F\u0440\u043E\u0441 \u0443\u0436\u0435 \u043E\u0431\u0440\u0430\u0431\u0430\u0442\u044B\u0432\u0430\u0435\u0442\u0441\u044F. \u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435.',
-    active_order: '\u0423 \u0432\u0430\u0441 \u0443\u0436\u0435 \u0435\u0441\u0442\u044C \u0430\u043A\u0442\u0438\u0432\u043D\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430. \u0414\u043E\u0436\u0434\u0438\u0442\u0435\u0441\u044C \u0435\u0451 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0438 \u0438\u043B\u0438 \u0438\u0441\u0442\u0435\u0447\u0435\u043D\u0438\u044F \u0441\u0440\u043E\u043A\u0430.',
-    cooldown_active: '\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 \u043D\u0435\u043C\u043D\u043E\u0433\u043E \u043F\u0435\u0440\u0435\u0434 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0435\u0439 \u0437\u0430\u044F\u0432\u043A\u043E\u0439',
-    no_free_cards: '\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0442, \u043F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435',
-    daily_limit: '\u0414\u043D\u0435\u0432\u043D\u043E\u0439 \u043B\u0438\u043C\u0438\u0442 \u043F\u043E \u0441\u0443\u043C\u043C\u0435 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u043D. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.',
-    rate_10m: '\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u044F\u0432\u043E\u043A, \u043F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435',
-    rate_24h: '\u0421\u043B\u0438\u0448\u043A\u043E\u043C \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u044F\u0432\u043E\u043A \u0437\u0430 \u0441\u0443\u0442\u043A\u0438',
-    duplicate: '\u041F\u043E\u0445\u043E\u0436\u0430\u044F \u0437\u0430\u044F\u0432\u043A\u0430 \u0443\u0436\u0435 \u0431\u044B\u043B\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430',
-    too_fast: '\u0424\u043E\u0440\u043C\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u044B\u0441\u0442\u0440\u043E',
-    validation: '\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0432\u0432\u0435\u0434\u0451\u043D\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435'
+    concurrent_request: 'Запрос уже обрабатывается. Подождите.',
+    active_order: 'У вас уже есть активная заявка. Дождитесь её обработки или истечения срока.',
+    cooldown_active: 'Подождите немного перед следующей заявкой',
+    no_free_cards: 'Свободные реквизиты временно отсутствуют, попробуйте позже',
+    daily_limit: 'Дневной лимит по сумме исчерпан. Попробуйте позже.',
+    rate_10m: 'Слишком много заявок, попробуйте позже',
+    rate_24h: 'Слишком много заявок за сутки',
+    duplicate: 'Похожая заявка уже была отправлена',
+    too_fast: 'Форма отправлена слишком быстро',
+    validation: 'Проверьте введённые данные'
   };
 
   function getErrorMessage(data) {
     if (data.reason && reasonMessages[data.reason]) {
       return reasonMessages[data.reason];
     }
-    return data.error || '\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430';
+    return data.error || 'Ошибка сервера';
   }
 
   function showAlert(msg, opts) {
@@ -496,13 +797,13 @@
     if (opts.showSupport) {
       var support = document.createElement('div');
       support.className = 'toast-support';
-      support.textContent = '\u041F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430: ' + CONFIG.supportUsername;
+      support.textContent = 'Поддержка: ' + CONFIG.supportUsername;
       toast.appendChild(support);
     }
 
     var closeBtn = document.createElement('button');
     closeBtn.className = 'toast-close';
-    closeBtn.textContent = '\u00d7';
+    closeBtn.textContent = '×';
     closeBtn.onclick = function() { toast.remove(); };
     toast.appendChild(closeBtn);
 
@@ -519,7 +820,7 @@
   /* ========== Init ========== */
 
   if (isOfferAccepted()) {
-    showScreen('exchange');
+    showScreen('home');
   } else {
     showScreen('offer');
   }

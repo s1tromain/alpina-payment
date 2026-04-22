@@ -56,8 +56,8 @@
     </div>
   </div>
 
-  <!-- Screen: Exchange (Step 1) -->
-  <div id="screenExchange" class="screen">
+  <!-- Screen: Home (Exchange) -->
+  <div id="screenHome" class="screen">
     <div class="container">
 
       <div class="page-header fade-up">
@@ -77,23 +77,6 @@
         </div>
       </div>
 
-      <div class="card fade-up">
-        <div class="card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          Данные заявки
-        </div>
-        <div class="field" data-required>
-          <label for="amountRub">Сумма оплаты (RUB)</label>
-          <input type="text" id="amountRub" inputmode="decimal" placeholder="Например: 10000" maxlength="15" autocomplete="off">
-          <span class="error-msg">Укажите сумму оплаты</span>
-        </div>
-        <div class="field" data-required>
-          <label for="payoutDetails">Реквизиты для получения USDT</label>
-          <input type="text" id="payoutDetails" placeholder="Логин" maxlength="500" autocomplete="off">
-          <span class="error-msg">Укажите реквизиты для получения</span>
-        </div>
-      </div>
-
       <div class="rate-card fade-up">
         <div class="rate-row">
           <span class="rate-label">Курс USDT/RUB</span>
@@ -107,17 +90,122 @@
         <div class="rate-update" id="rateUpdate"></div>
       </div>
 
+      <div class="card fade-up">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Данные заявки
+        </div>
+        <div class="field" data-required>
+          <label for="amountRub">Сумма оплаты (RUB)</label>
+          <input type="text" id="amountRub" inputmode="decimal" placeholder="Например: 10000" maxlength="15" autocomplete="off">
+          <span class="error-msg">Укажите сумму оплаты</span>
+        </div>
+        <div class="quick-amounts" id="quickAmounts">
+          <button type="button" class="quick-amount" data-amount="1000">1 000 ₽</button>
+          <button type="button" class="quick-amount" data-amount="5000">5 000 ₽</button>
+          <button type="button" class="quick-amount" data-amount="10000">10 000 ₽</button>
+          <button type="button" class="quick-amount" data-amount="25000">25 000 ₽</button>
+          <button type="button" class="quick-amount" data-amount="50000">50 000 ₽</button>
+          <button type="button" class="quick-amount" data-amount="100000">100 000 ₽</button>
+        </div>
+        <div class="field" data-required>
+          <label for="payoutDetails">Реквизиты для получения USDT</label>
+          <input type="text" id="payoutDetails" placeholder="Логин" maxlength="500" autocomplete="off">
+          <span class="error-msg">Укажите реквизиты для получения</span>
+        </div>
+      </div>
+
       <div class="network-fee-hint fade-up">
         <span class="network-fee-icon">ℹ️</span>
         <span>Обратите внимание: при зачислении средств возможна комиссия сети (~3$), которая не зависит от сервиса.</span>
       </div>
 
-      <button type="button" class="btn-primary fade-up" id="nextBtn">Далее</button>
+      <button type="button" class="btn-primary fade-up" id="nextBtn">Купить USDT</button>
 
     </div>
   </div>
 
-  <!-- Screen: Payment (Step 2) -->
+  <!-- Screen: History -->
+  <div id="screenHistory" class="screen">
+    <div class="container">
+      <div class="page-header fade-up">
+        <h1>История заявок</h1>
+        <div class="subtitle">Все ваши операции с USDT</div>
+      </div>
+
+      <div class="history-loading" id="historyLoading">
+        <div class="spinner"></div>
+        <span>Загрузка…</span>
+      </div>
+
+      <div class="empty-state" id="historyEmpty">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h3>Заявок пока нет</h3>
+        <p>Ваши заявки появятся здесь после первой покупки USDT.</p>
+      </div>
+
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+
+  <!-- Screen: Profile -->
+  <div id="screenProfile" class="screen">
+    <div class="container">
+      <div class="profile-card fade-up">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="profileAvatar">
+            <span id="profileInitials">—</span>
+          </div>
+        </div>
+        <div class="profile-name" id="profileName">—</div>
+        <div class="profile-username" id="profileUsername">—</div>
+        <div class="profile-id" id="profileId"></div>
+      </div>
+
+      <div class="stats-grid fade-up">
+        <div class="stat-tile">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div class="stat-value" id="statTotalRub">—</div>
+          <div class="stat-label">Оплачено ₽</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+          </div>
+          <div class="stat-value" id="statTotalUsdt">—</div>
+          <div class="stat-label">Получено USDT</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </div>
+          <div class="stat-value" id="statTotalOrders">—</div>
+          <div class="stat-label">Сделок</div>
+        </div>
+      </div>
+
+      <div class="card fade-up" id="profileExtra">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Дополнительно
+        </div>
+        <div class="summary-row">
+          <span>В обработке</span>
+          <span class="summary-val" id="statPendingCount">0</span>
+        </div>
+        <div class="summary-row">
+          <span>Отклонено</span>
+          <span class="summary-val" id="statRejectedCount">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen: Payment (full overlay — nav hidden) -->
   <div id="screenPayment" class="screen">
     <div class="container">
 
@@ -196,6 +284,22 @@
 
     </div>
   </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button type="button" class="nav-item" data-nav="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Главная</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+      <span>История</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Профиль</span>
+    </button>
+  </nav>
 
   <footer class="page-footer">
     Powered by <span>ALPINA PAY-OUT</span>
