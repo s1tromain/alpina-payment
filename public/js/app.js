@@ -661,6 +661,12 @@
     return base.charAt(0).toUpperCase();
   }
 
+  function generateAvatar(user) {
+    var name = (user && (user.first_name || user.username)) || 'U';
+    var initial = name.charAt(0).toUpperCase();
+    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(initial) + '&background=0D8ABC&color=fff&size=128&bold=true';
+  }
+
   function applyProfileFromTg() {
     var name = '—';
     var uname = '—';
@@ -680,11 +686,13 @@
     profileInitials.textContent = getInitials();
 
     if (tgInitUser && tgInitUser.photo_url) {
-      setAvatarImage(tgInitUser.photo_url);
+      setAvatarImage(tgInitUser.photo_url, generateAvatar(tgInitUser));
+    } else {
+      setAvatarImage(generateAvatar(tgInitUser));
     }
   }
 
-  function setAvatarImage(url) {
+  function setAvatarImage(url, fallbackUrl) {
     var existing = profileAvatar.querySelector('img');
     if (existing) existing.remove();
 
@@ -695,7 +703,11 @@
     };
     img.onerror = function () {
       img.remove();
-      profileInitials.style.display = '';
+      if (fallbackUrl) {
+        setAvatarImage(fallbackUrl);
+      } else {
+        profileInitials.style.display = '';
+      }
     };
     img.src = url;
     profileAvatar.appendChild(img);
