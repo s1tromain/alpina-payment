@@ -2,6 +2,7 @@ const { modBot, userBot } = require('./_telegram');
 const { getRedis } = require('./_redis');
 const { releaseCardByOrder } = require('./_requisites');
 const { recordApproval, checkDailyLimit } = require('./_stats');
+const { getDb } = require('./_db');
 
 const MAX_BODY_SIZE = 64 * 1024;
 const PROCESSED_TTL = 86400;
@@ -197,6 +198,13 @@ async function handleCallback(cb, res) {
       try { await recordApproval(parseFloat(order.payAmount)); } catch (_) {}
     }
 
+    // Sync status to Supabase (fire-and-forget)
+    try {
+      const db = getDb();
+      const { error: sbErr } = await db.from('orders').update({ status: 'approved', processed_at: order.processedAt }).eq('order_id', orderId);
+      if (sbErr) console.error('Supabase approve sync error:', sbErr.message);
+    } catch (dbErr) { console.error('Supabase approve crash:', dbErr.message); }
+
     const statusLine = '\u2705 \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u043E, \u043E\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0430 \u043C\u043E\u043D\u0435\u0442\u044B\n\uD83D\uDC64 ' + adminName;
     const newCaption = existingCaption.replace(/\u23F3[\s\S]*$/, statusLine);
     const nextButtons = {
@@ -231,6 +239,13 @@ async function handleCallback(cb, res) {
     await r.set('order:' + orderId, JSON.stringify(order), { ex: PROCESSED_TTL });
     await releaseCardByOrder(order);
 
+    // Sync status to Supabase (fire-and-forget)
+    try {
+      const db = getDb();
+      const { error: sbErr } = await db.from('orders').update({ status: 'completed', processed_at: order.completedAt }).eq('order_id', orderId);
+      if (sbErr) console.error('Supabase complete sync error:', sbErr.message);
+    } catch (dbErr) { console.error('Supabase complete crash:', dbErr.message); }
+
     const statusLine = '\uD83D\uDCB8 \u0421\u0440\u0435\u0434\u0441\u0442\u0432\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044E\n\uD83D\uDC64 ' + adminName;
     const newCaption = existingCaption.replace(/\u2705[\s\S]*$/, statusLine);
     const emptyMarkup = { inline_keyboard: [] };
@@ -260,6 +275,13 @@ async function handleCallback(cb, res) {
     order.processedAt = new Date().toISOString();
     await r.set('order:' + orderId, JSON.stringify(order), { ex: PROCESSED_TTL });
     await releaseCardByOrder(order);
+
+    // Sync status to Supabase (fire-and-forget)
+    try {
+      const db = getDb();
+      const { error: sbErr } = await db.from('orders').update({ status: 'rejected', processed_at: order.processedAt }).eq('order_id', orderId);
+      if (sbErr) console.error('Supabase reject sync error:', sbErr.message);
+    } catch (dbErr) { console.error('Supabase reject crash:', dbErr.message); }
 
     const statusLine = '\u274C \u041E\u0442\u043A\u043B\u043E\u043D\u0435\u043D\u0430\n\uD83D\uDC64 ' + adminName;
     const newCaption = existingCaption.replace(/(\u23F3|\u2705)[\s\S]*$/, statusLine);

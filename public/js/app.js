@@ -547,12 +547,25 @@
   /* ========== History ========== */
 
   var statusMeta = {
-    pending: { label: 'На проверке', cls: 'st-pending' },
-    approved: { label: 'Выполнена', cls: 'st-approved' },
-    rejected: { label: 'Отклонена', cls: 'st-rejected' },
-    expired: { label: 'Истекла', cls: 'st-expired' },
-    cancelled: { label: 'Отменена', cls: 'st-expired' }
+    created:   { label: 'Ожидает оплаты', cls: 'st-pending' },
+    pending:   { label: 'На проверке',    cls: 'st-pending' },
+    approved:  { label: 'Выполнена',      cls: 'st-approved' },
+    completed: { label: 'Завершено',      cls: 'st-approved' },
+    rejected:  { label: 'Отклонена',      cls: 'st-rejected' },
+    expired:   { label: 'Истекла',        cls: 'st-expired' },
+    cancelled: { label: 'Отменена',       cls: 'st-expired' }
   };
+
+  var CANCELLABLE = { created: true, pending: true };
+
+  historyList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-cancel-order');
+    if (!btn || btn.disabled) return;
+    var oid = btn.getAttribute('data-order-id');
+    if (!oid) return;
+    if (!confirm('Отменить заявку ' + oid + '?')) return;
+    cancelOrder(oid, btn);
+  });
 
   function formatDate(iso) {
     if (!iso) return '—';
@@ -607,12 +620,41 @@
           '</div>' +
           '<div class="order-row order-row-bottom">' +
             '<span class="order-id">' + escapeHtml(o.order_id) + '</span>' +
+            (CANCELLABLE[o.status] ? '<button class="btn-cancel-order" data-order-id="' + escapeHtml(o.order_id) + '">Отменить</button>' : '') +
           '</div>' +
         '</div>';
     }).join('');
 
     historyList.innerHTML = html;
     historyList.classList.add('active');
+  }
+
+  function cancelOrder(orderId, btn) {
+    if (btn) btn.disabled = true;
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/order/cancel');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (tgInitData) xhr.setRequestHeader('X-Telegram-Init-Data', tgInitData);
+    xhr.onload = function () {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (data.ok) {
+          historyLoadedAt = 0;
+          loadHistory(true);
+        } else {
+          if (btn) btn.disabled = false;
+          showAlert(data.error || 'Не удалось отменить заявку');
+        }
+      } catch (e) {
+        if (btn) btn.disabled = false;
+        showAlert('Ошибка ответа сервера');
+      }
+    };
+    xhr.onerror = function () {
+      if (btn) btn.disabled = false;
+      showAlert('Ошибка сети. Проверьте подключение.');
+    };
+    xhr.send(JSON.stringify({ orderId: orderId }));
   }
 
   function loadHistory(force) {
