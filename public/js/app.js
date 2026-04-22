@@ -705,8 +705,7 @@
 
   function generateAvatar(user) {
     var name = (user && (user.first_name || user.username)) || 'U';
-    var initial = name.charAt(0).toUpperCase();
-    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(initial) + '&background=0D8ABC&color=fff&size=128&bold=true';
+    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(name) + '&background=0D8ABC&color=fff&size=128&bold=true';
   }
 
   function applyProfileFromTg() {
@@ -760,11 +759,11 @@
 
   function applyStats(stats) {
     if (!stats) return;
-    statTotalRub.textContent = formatAmount(stats.totalRub);
-    statTotalUsdt.textContent = formatAmount(stats.totalUsdt);
-    statTotalOrders.textContent = String(stats.totalOrders || 0);
-    statPendingCount.textContent = String(stats.pendingCount || 0);
-    statRejectedCount.textContent = String(stats.rejectedCount || 0);
+    statTotalRub.textContent    = formatAmount(stats.totalRub);
+    statTotalUsdt.textContent   = formatAmount(stats.totalUsdt);
+    statTotalOrders.textContent = String(stats.totalOrders || stats.totalDeals || 0);
+    statPendingCount.textContent  = String(stats.pendingCount  || stats.pending  || 0);
+    statRejectedCount.textContent = String(stats.rejectedCount || stats.rejected || 0);
   }
 
   function loadProfile(force) {
@@ -791,7 +790,10 @@
           profileName.textContent = name;
           profileUsername.textContent = p.username ? '@' + p.username : '';
           profileId.textContent = p.telegramId ? 'ID ' + p.telegramId : '';
-          if (p.photoUrl) setAvatarImage(p.photoUrl);
+          if (p.photoUrl) {
+            var proxied = '/api/avatar?url=' + encodeURIComponent(p.photoUrl);
+            setAvatarImage(proxied, generateAvatar({ first_name: p.firstName, username: p.username }));
+          }
         }
       } catch (e) {}
     };
