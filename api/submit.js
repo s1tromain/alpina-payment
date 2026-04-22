@@ -287,38 +287,60 @@ module.exports = async (req, res) => {
     // Save to Supabase history (fire-and-forget — never breaks Redis flow)
     try {
       const db = getDb();
-      await db.from('users').upsert(
+      const tgId = String(order.telegramId);
+
+      // Step 1: upsert user (required for FK on orders.telegram_id)
+      const { error: userErr } = await db.from('users').upsert(
         {
-          telegram_id: parseInt(order.telegramId, 10),
+          telegram_id: tgId,
           username: order.telegramUsername || null,
           first_name: order.telegramFirstName || null,
         },
         { onConflict: 'telegram_id' }
       );
+      if (userErr) {
+        console.error('SUPABASE users upsert error:', userErr.message, userErr.details, userErr.hint);
+      }
+
+      // Step 2: insert order
       let receiptFileId = null;
       if (channelResult && channelResult.ok && channelResult.result && Array.isArray(channelResult.result.photo)) {
         const photos = channelResult.result.photo;
         receiptFileId = photos[photos.length - 1].file_id;
       }
-      await db.from('orders').insert({
+
+      const orderPayload = {
         order_id: order.orderId,
-        telegram_id: parseInt(order.telegramId, 10),
+        telegram_id: tgId,
         receive_currency: order.receiveCurrency,
-        receive_amount: order.receiveAmount,
+        receive_amount: Number(order.receiveAmount),
         pay_currency: order.payCurrency,
-        pay_amount: order.payAmount,
-        base_rate: order.baseRate,
-        markup_percent: order.markupPercent,
-        final_rate: order.finalRate,
+        pay_amount: Number(order.payAmount),
+        base_rate: Number(order.baseRate),
+        markup_percent: Number(order.markupPercent),
+        final_rate: Number(order.finalRate),
         payout_details: order.payoutDetails,
         receipt_file_id: receiptFileId,
         status: 'pending',
         telegram_channel_message_id: channelMessageId,
         created_at: order.createdAt,
         expires_at: order.expiresAt,
-      });
+      };
+
+      console.log('SUPABASE INSERT payload:', JSON.stringify(orderPayload));
+
+      const { data: insertData, error: insertErr } = await db
+        .from('orders')
+        .insert(orderPayload)
+        .select();
+
+      if (insertErr) {
+        console.error('SUPABASE INSERT ERROR:', insertErr.message, insertErr.details, insertErr.hint, insertErr.code);
+      } else {
+        console.log('SUPABASE INSERT OK:', insertData && insertData[0] && insertData[0].id);
+      }
     } catch (dbErr) {
-      console.error('Supabase insert error (non-fatal):', dbErr.message);
+      console.error('SUPABASE CRASH:', dbErr.message);
     }
 
     if (order.telegramId) {
