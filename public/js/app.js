@@ -685,7 +685,9 @@
 
     profileInitials.textContent = getInitials();
 
-    if (tgInitUser && tgInitUser.photo_url) {
+    console.log('Avatar URL:', tgInitUser && tgInitUser.photo_url);
+
+    if (tgInitUser && tgInitUser.photo_url && tgInitUser.photo_url.startsWith('http')) {
       setAvatarImage(tgInitUser.photo_url, generateAvatar(tgInitUser));
     } else {
       setAvatarImage(generateAvatar(tgInitUser));
